@@ -1,0 +1,33 @@
+{
+  "name": "@restmodel/mock",
+  "version": "0.0.0",
+  "private": true,
+  "description": "HTTP debugging and mocking extension for RESTModel.",
+  "type": "module",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@restmodel/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@restmodel/core": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "UNLICENSED"
+}

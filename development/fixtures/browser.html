@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>RESTModel browser contract check</title>
+<script type="importmap">
+{"imports":{"@restmodel/core":"/core/index.js","axios":"/axios.js"}}
+</script>
+<pre id="result">RUNNING</pre>
+<script type="module">
+import {createClient, resource, resourceOf, fetchTransport, executeHttp} from '@restmodel/core';
+import {axiosTransport} from '/extension/index.js';
+import axios from 'axios';
+const checks=[];
+function check(value,label){if(!value)throw new Error(label);checks.push(label);}
+try {
+  const resources={users:resource({operations:'*'})};
+  const api=createClient({baseURL:'/api',transport:fetchTransport(),resources});
+  const list=await api.users.query({name:'中/a'}).list();
+  check(list.items[0].id===0&&list.items[0].path.includes('name=%E4%B8%AD%2Fa'),'Fetch query/list');
+  check((await resourceOf(list.items[0]).get()).path==='/api/users/0','Entity identity and cleared query');
+  check((await api.users.post({name:'browser'})).name==='browser','JSON body');
+  const wrapped=await api.users(0).with({result:'response'}).with({result:undefined}).get();
+  check(wrapped.response.status===200,'Response mode inheritance');
+  const aborted=new AbortController();aborted.abort();
+  let cancelled=false;
+  try {await executeHttp({transport:()=>{throw new Error('must not execute');}},{method:'GET',url:'/api/users',headers:{},signal:aborted.signal});}catch(error){cancelled=error.kind==='cancel';}
+  check(cancelled,'Request signal cancellation');
+  let rejected=false;try{await api.$.request({method:'GET',path:'redirect'});}catch{rejected=true;}
+  check(rejected,'Fetch redirect rejection');
+  const ax=createClient({baseURL:'/api',transport:axiosTransport(axios.create()),resources});
+  check((await ax.users.list()).items[0].id===0,'Axios browser adapter');
+  rejected=false;try{await ax.$.request({method:'GET',path:'redirect'});}catch{rejected=true;}
+  check(rejected,'Axios redirect rejection');
+  const count=await (await fetch('/api/redirect-count')).json();
+  check(count.followed===0,'Redirect target never requested');
+  document.querySelector('#result').textContent=JSON.stringify({status:'PASS',checks});
+}catch(error){document.querySelector('#result').textContent=JSON.stringify({status:'FAIL',message:error.stack});}
+</script>

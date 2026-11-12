@@ -1,0 +1,37 @@
+{
+  "name": "@restmodel/pinia",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pinia state management integration for RESTModel.",
+  "type": "module",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
+    "test": "pnpm build && node --test tests/*.test.mjs"
+  },
+  "peerDependencies": {
+    "@restmodel/core": "workspace:^",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.45"
+  },
+  "devDependencies": {
+    "@restmodel/core": "workspace:*",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.45"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "UNLICENSED"
+}

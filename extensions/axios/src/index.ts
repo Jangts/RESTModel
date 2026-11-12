@@ -1,0 +1,36 @@
+/** Axios Transport：只消费 core 的公共 HTTP 契约，不推导资源或处理业务信封。 */
+import axios from 'axios';
+import type { AxiosInstance } from 'axios';
+import { decodeHttpBody } from '@restmodel/core';
+import type { Transport } from '@restmodel/core';
+/**
+ * 复用 Axios 实例执行最终请求；实例拦截器属于调用方信任边界。
+ * @param instance 可选已有实例；缺省创建隔离实例。
+ * @returns 非 2xx 也正常返回响应的 Transport，不跟随重定向。
+ * @throws Error 网络、取消或响应解码失败交给 core 分类。
+ */
+export function axiosTransport(instance: AxiosInstance = axios.create()): Transport {
+  return async (request) => {
+    const response = await instance.request<string>({
+      method: request.method,
+      url: request.url,
+      headers: { ...request.headers },
+      data: request.body,
+      ...(request.signal ? { signal: request.signal } : {}),
+      validateStatus: () => true,
+      maxRedirects: 0,
+      ...(typeof window === 'undefined'
+        ? {}
+        : { adapter: 'fetch' as const, fetchOptions: { redirect: 'manual' as const } }),
+      responseType: 'text',
+      transformResponse: [],
+    });
+    const headers = Object.fromEntries(
+      Object.entries(response.headers)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        .map(([key, value]) => [key.toLowerCase(), value]),
+    );
+    const body = decodeHttpBody(response.data, response.status, headers);
+    return { status: response.status, headers, body };
+  };
+}
