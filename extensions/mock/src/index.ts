@@ -1,5 +1,5 @@
 /** HTTP Mock 装饰 Transport，匹配经过共同准备和编码的最终请求。 */
-import type { HttpRequest, HttpResponse, Transport } from '@restmodel/core';
+import type { HttpRequest, HttpResponse, Transport } from '@restmodel/restmodel';
 /** 单条 HTTP 规则，按声明顺序首次匹配。 */
 export interface MockRule {
   /** 可按 method、url、headers、body 共同判定。 */

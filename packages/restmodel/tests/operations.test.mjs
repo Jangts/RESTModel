@@ -292,3 +292,66 @@ test('invalid declarations report the field path without coercing sensitive valu
   }
   assert.equal(coercions, 0);
 });
+
+test('mixed operation declarations preserve immutable overrides and inherited route patches', () => {
+  const mapping = { operation: 'get', path: 'getById', queryKey: 'id' };
+  const preset = defineResourcePreset({ operations: ['list', mapping] });
+  mapping.path = 'changed';
+  const definition = resource({
+    extends: preset,
+    operations: { get: { method: 'POST' }, put: true },
+  });
+  assert.deepEqual(definition.operations.get, {
+    method: 'POST',
+    target: 'member',
+    path: 'getById',
+    queryKey: 'id',
+  });
+  const changed = resource({
+    extends: preset,
+    operations: [{ operation: 'get', path: 'lookup/:id' }],
+  });
+  assert.equal(changed.operations.get.path, 'lookup/:id');
+  assert.equal(changed.operations.get.queryKey, undefined);
+  assert.equal(changed.operations.list.method, 'GET');
+  assert.ok(Object.isFrozen(changed.operations.get));
+  assert.equal(
+    resource({ kind: 'singleton', operations: [{ operation: 'get', path: 'current' }] }).operations
+      .get.path,
+    'current',
+  );
+});
+
+test('operation mappings reject ambiguous identities, duplicates, unsafe paths and accessors', () => {
+  for (const operations of [
+    ['get', { operation: 'get', path: 'lookup/:id' }],
+    [{ operation: 'unknown', path: 'lookup' }],
+    [{ operation: 'get', path: 'lookup/:other' }],
+    [{ operation: 'get', path: 'lookup/:id', queryKey: 'id' }],
+    [{ operation: 'get', path: 'lookup/:id/:id' }],
+    [{ operation: 'get', path: '../lookup', queryKey: 'id' }],
+    [{ operation: 'get', path: 'https://elsewhere.test/users', queryKey: 'id' }],
+    [{ operation: 'get', path: '/lookup', queryKey: 'id' }],
+    [{ operation: 'get', path: 'lookup', queryKey: '' }],
+    [{ operation: 'get', path: 'lookup' }],
+    [{ operation: 'get', path: 'lookup', queryKey: null }],
+    [{ operation: 'get', path: undefined }],
+    [{ operation: 'list', path: 'lookup/:id' }],
+    [{ operation: 'post', queryKey: 'id' }],
+  ])
+    assert.throws(() => resource({ operations }), ResourceConfigurationError);
+  assert.throws(
+    () => resource({ kind: 'singleton', operations: [{ operation: 'get', queryKey: 'id' }] }),
+    ResourceConfigurationError,
+  );
+  let reads = 0;
+  const entry = {
+    operation: 'get',
+    get path() {
+      reads++;
+      return 'lookup/:id';
+    },
+  };
+  assert.throws(() => resource({ operations: [entry] }), ResourceConfigurationError);
+  assert.equal(reads, 0);
+});

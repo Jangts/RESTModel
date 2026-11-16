@@ -1,4 +1,5 @@
 /** 资源声明入口：解析预设继承并归一化能力，导出资源定义和预设类型。 */
+import { reservedResourceNames, validateActionNames } from './reference-names.js';
 import { resolveOperations, snapshotOperations } from './operations.js';
 import { configurationFields, ResourceConfigurationError } from './configuration.js';
 import { defineScheme } from './scheme.js';
@@ -170,7 +171,7 @@ export function resource<TModel = unknown>(
         throw new ResourceConfigurationError(`resource.${key}: singleton has no members`);
       const entries = configurationFields(value, `resource.${key}`);
       for (const name of entries.keys())
-        if (['$', 'then', '__proto__', 'prototype', 'constructor'].includes(name))
+        if (reservedResourceNames.has(name))
           throw new ResourceConfigurationError(`resource.${key}: reserved name`);
       if (key === 'actions' || key === 'memberActions')
         extras[key] = Object.freeze(
@@ -186,6 +187,16 @@ export function resource<TModel = unknown>(
       }
     }
   }
+  validateActionNames(
+    extras.actions as ActionTree | undefined,
+    extras.children as ResourceTree | undefined,
+    'resource.actions',
+  );
+  validateActionNames(
+    extras.memberActions as ActionTree | undefined,
+    extras.members as ResourceTree | undefined,
+    'resource.memberActions',
+  );
   const definition = Object.freeze({
     kind,
     operations: resolveOperations(kind, layers),

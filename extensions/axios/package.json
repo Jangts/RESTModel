@@ -1,12 +1,12 @@
 {
   "name": "@restmodel/axios",
   "version": "0.0.0",
-  "private": true,
   "description": "Axios transport extension for RESTModel.",
   "type": "module",
   "files": [
     "dist",
-    "src"
+    "src",
+    "LICENSE"
   ],
   "exports": {
     ".": {
@@ -18,18 +18,41 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
-    "test": "pnpm build && node --test tests/*.test.mjs"
+    "test": "pnpm build && node --test tests/*.test.mjs",
+    "prepack": "pnpm run clean && pnpm run build"
   },
   "peerDependencies": {
-    "@restmodel/core": "workspace:^",
+    "@restmodel/restmodel": "workspace:^",
     "axios": "^1.21.1"
   },
   "devDependencies": {
-    "@restmodel/core": "workspace:*",
+    "@restmodel/restmodel": "workspace:*",
     "axios": "^1.21.1"
   },
   "engines": {
     "node": ">=22"
   },
-  "license": "UNLICENSED"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jangts/RESTModel.git",
+    "directory": "extensions/axios"
+  },
+  "homepage": "https://github.com/Jangts/RESTModel/tree/main/extensions/axios#readme",
+  "bugs": {
+    "url": "https://github.com/Jangts/RESTModel/issues"
+  },
+  "keywords": [
+    "restmodel",
+    "rest",
+    "http-client",
+    "typescript",
+    "axios"
+  ]
 }

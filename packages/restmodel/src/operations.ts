@@ -1,4 +1,5 @@
 /** 标准操作目录、声明快照和能力归一化；供资源声明阶段使用。 */
+import { validateOperationRoute } from './operation-route.js';
 import { defineScheme, mergeSchemes } from './scheme.js';
 import type { Scheme } from './scheme.js';
 import { configurationFields, ResourceConfigurationError } from './configuration.js';
@@ -36,15 +37,26 @@ export interface OperationOverride {
   readonly method?: HttpMethod;
   /** 仅适配当前已开放操作；不能授予能力。 */
   readonly scheme?: Scheme;
+  /** 相对当前资源的操作路径；成员身份通过 :id 或 queryKey 传递。 */
+  readonly path?: string;
+  /** 将绑定的单段身份放入此查询字段，与路径中的 :id 互斥。 */
+  readonly queryKey?: string;
 }
 /** 逐项补丁；false 关闭，星号仅接受 true。 */
 export type OperationMap = Readonly<
   Partial<Record<StandardOperation, boolean | OperationOverride>> & { '*'?: true }
 >;
-/** 能力声明的三种等价入口，数组采用追加语义。 */
-export type Operations = '*' | readonly StandardOperation[] | OperationMap;
+/** 数组中的具名标准操作覆盖，保留标准操作语义。 */
+export interface OperationDeclaration extends OperationOverride {
+  /** 此例外配置对应的标准操作。 */
+  readonly operation: StandardOperation;
+}
+/** 数组项：标准操作名或具名覆盖声明。 */
+export type OperationEntry = StandardOperation | OperationDeclaration;
+/** 能力声明支持星号、混合数组与映射，数组采用追加语义。 */
+export type Operations = '*' | readonly OperationEntry[] | OperationMap;
 /** 单项能力的归一化结果。 */
-export interface ResolvedOperation {
+export interface ResolvedOperation extends OperationOverride {
   /** 最终 HTTP 方法。 */
   readonly method: HttpMethod;
   /** 请求作用于集合、成员或单体。 */
@@ -77,13 +89,32 @@ function operationName(value: unknown, label: string): StandardOperation {
 export function snapshotOperations(input: unknown, label = 'operations'): Operations {
   if (input === '*') return input;
   if (Array.isArray(input)) {
-    const result: StandardOperation[] = [];
+    const result: OperationEntry[] = [];
+    const seen = new Set<StandardOperation>();
     // 不调用可被覆盖的 map/迭代器，也不执行数组元素访问器。
     for (let index = 0; index < input.length; index++) {
       const descriptor = Object.getOwnPropertyDescriptor(input, String(index));
       if (!descriptor || !('value' in descriptor))
         throw new ResourceConfigurationError(`${label}[${index}]: expected a data element`);
-      result.push(operationName(descriptor.value, `${label}[${index}]`));
+      const entry = descriptor.value;
+      let name: StandardOperation;
+      let snapshot: OperationEntry;
+      if (typeof entry === 'string') {
+        name = operationName(entry, `${label}[${index}]`);
+        snapshot = name;
+      } else {
+        const fields = configurationFields(entry, `${label}[${index}]`);
+        name = operationName(fields.get('operation'), `${label}[${index}].operation`);
+        fields.delete('operation');
+        const mapped = snapshotOperations(
+          { [name]: Object.fromEntries(fields) },
+          `${label}[${index}]`,
+        ) as OperationMap;
+        snapshot = Object.freeze({ operation: name, ...(mapped[name] as OperationOverride) });
+      }
+      if (seen.has(name)) fail(`${label}[${index}]: duplicate operation`);
+      seen.add(name);
+      result.push(snapshot);
     }
     return Object.freeze(result);
   }
@@ -101,15 +132,20 @@ export function snapshotOperations(input: unknown, label = 'operations'): Operat
       continue;
     }
     const override = configurationFields(value, `${label}.${name}`);
-    if ([...override.keys()].some((key) => key !== 'method' && key !== 'scheme'))
+    if ([...override.keys()].some((key) => !['method', 'scheme', 'path', 'queryKey'].includes(key)))
       fail(`${label}.${name}: unknown override field`);
     const method = override.get('method');
     if (override.has('method') && !isHttpMethod(method)) {
       fail(`${label}.${name}.method: invalid HTTP method`);
     }
+    for (const key of ['path', 'queryKey'])
+      if (override.has(key) && typeof override.get(key) !== 'string')
+        fail(`${label}.${name}.${key}: expected a string`);
     // 已按有限方法目录校验；断言仅在写入类型化快照处使用。
     result[name] = Object.freeze({
       ...(override.has('method') ? { method: method as HttpMethod } : {}),
+      ...(override.has('path') ? { path: override.get('path') as string } : {}),
+      ...(override.has('queryKey') ? { queryKey: override.get('queryKey') as string } : {}),
       ...(override.has('scheme') ? { scheme: defineScheme(override.get('scheme') as Scheme) } : {}),
     });
   }
@@ -132,12 +168,29 @@ export function resolveOperations(
     kind === 'collection' || standardOperations[name].target === 'member';
   const enable = (name: StandardOperation, override: OperationOverride = {}) => {
     if (!applicable(name)) fail(`Operation ${name} is not applicable to a ${kind} resource`);
+    const target = kind === 'singleton' ? 'singleton' : standardOperations[name].target;
+    const route =
+      own(override, 'path') || own(override, 'queryKey')
+        ? {
+            ...(own(override, 'path') ? { path: override.path! } : {}),
+            ...(own(override, 'queryKey') ? { queryKey: override.queryKey! } : {}),
+          }
+        : {
+            ...(resolved[name] && own(resolved[name]!, 'path')
+              ? { path: resolved[name]!.path! }
+              : {}),
+            ...(resolved[name] && own(resolved[name]!, 'queryKey')
+              ? { queryKey: resolved[name]!.queryKey! }
+              : {}),
+          };
+    validateOperationRoute(route, target, `operations.${name}`);
     resolved[name] = Object.freeze({
+      ...route,
       method:
         (own(override, 'method') ? override.method : undefined) ??
         resolved[name]?.method ??
         standardOperations[name].method,
-      target: kind === 'singleton' ? 'singleton' : standardOperations[name].target,
+      target,
       ...(own(override, 'scheme') || resolved[name]?.scheme
         ? {
             scheme: mergeSchemes(
@@ -158,7 +211,9 @@ export function resolveOperations(
     }
     if (layer === '*') continue;
     if (Array.isArray(layer)) {
-      for (const name of layer) enable(name);
+      for (const entry of layer)
+        if (typeof entry === 'string') enable(operationName(entry, 'operations'));
+        else enable(entry.operation, entry);
       continue;
     }
     for (const [key, value] of Object.entries(layer)) {

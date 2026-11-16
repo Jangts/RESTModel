@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createClient, resource } from '@restmodel/core';
+import { createClient, resource } from '@restmodel/restmodel';
 import { withMock } from '../dist/index.js';
 test('Mock matches final prepared HTTP and uses common scheme adaptation', async () => {
   let real = 0,

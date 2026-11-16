@@ -1,0 +1,49 @@
+{
+  "name": "@restmodel/restmodel",
+  "version": "0.0.0",
+  "description": "Model-based RESTful HTTP client with fluent resource operations.",
+  "type": "module",
+  "files": [
+    "dist",
+    "src",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true });\"",
+    "test": "pnpm build && tsc -p tests/tsconfig.json && node --test tests/*.test.mjs",
+    "prepack": "pnpm run clean && pnpm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jangts/RESTModel.git",
+    "directory": "packages/restmodel"
+  },
+  "homepage": "https://github.com/Jangts/RESTModel/tree/main/packages/restmodel#readme",
+  "bugs": {
+    "url": "https://github.com/Jangts/RESTModel/issues"
+  },
+  "keywords": [
+    "restmodel",
+    "rest",
+    "http-client",
+    "typescript"
+  ]
+}

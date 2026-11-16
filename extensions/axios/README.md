@@ -1,10 +1,23 @@
 # @restmodel/axios
 
-将 Axios 接到 RESTModel 的公开 HTTP 契约。Node.js 22+；peer 为 @restmodel/core ^0.0.0 与 axios ^1.21.1。当前 private 开发包，尚未公开发布或指定公开分发许可。仓库执行 `pnpm install`、`pnpm build`；本地 tarball 消费时同时安装 core 和 Axios。
+将 Axios 接到 RESTModel 的公开 HTTP 契约。Node.js 22+；peer 为 @restmodel/restmodel ^0.0.0 与 axios ^1.21.1。本扩展面向公共发布，尚未公开发布，采用 [MIT License](LICENSE)。仓库执行 `pnpm install`、`pnpm build`；本地 tarball 消费时同时安装 @restmodel/restmodel 和 Axios。
+
+
+## 安装
+
+正式发布后，可从 npm 安装（当前尚未发布）：
+
+```sh
+pnpm add @restmodel/restmodel @restmodel/axios axios
+```
+
+发布前可在仓库根目录执行 `pnpm install`、`pnpm build`，再在 `extensions/axios` 执行 `pnpm pack --pack-destination /tmp/restmodel-pack`。在消费项目中用 `pnpm add /tmp/restmodel-pack/实际生成的文件名.tgz` 安装；扩展需同时安装主包 tarball 及上述第三方 peer 依赖。打包会先清理并重新构建本包的 dist。
+
+## 使用
 
 ```ts
 import axios from 'axios';
-import { createClient, resource } from '@restmodel/core';
+import { createClient, resource } from '@restmodel/restmodel';
 import { axiosTransport } from '@restmodel/axios';
 const api = createClient({
   baseURL: 'https://example.test/api',

@@ -4,7 +4,7 @@
 
 ## 基线与范围
 
-工作区 `/Users/ivan/Codes/RESTModel`；现有源码为未跟踪基线，没有通过 reset、clean 或提交操作覆盖用户文件。Node v24.9.0、pnpm 8.10.5、TypeScript 5.9.3；core 与三个扩展仍为 0.0.0/private。
+工作区 `/Users/ivan/Codes/RESTModel`；现有源码为未跟踪基线，没有通过 reset、clean 或提交操作覆盖用户文件。Node v24.9.0、pnpm 8.10.5、TypeScript 5.9.3；验收时 core 与三个扩展为 0.0.0/private（2026-11-16 已移除发布包的 private，按公共库目标配置）。
 
 覆盖 core 全部生产模块、三个扩展入口、行为/类型用例、manifest/锁、编译产物和实际 tarball。core 无第三方运行依赖；Axios 1.21.1、Pinia 4.1.0、Vue 3.5.45 由对应扩展声明为 peer，工作区提供开发依赖。没有创建独立 http/shared 包。
 
@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | 工作区编译 | pnpm build 通过；最终 pnpm test 也重新编译全部四包 | 各包 tsc 脚本和 dist |
 | 类型 | pnpm typecheck 通过；核心测试中 tsc -p tests/tsconfig.json 通过 | operations.types.ts、client.types.ts |
-| 核心行为 | 53 项通过，无失败/跳过 | packages/core/tests/*.test.mjs |
+| 核心行为 | 53 项通过，无失败/跳过 | packages/restmodel/tests/*.test.mjs |
 | Axios | 1 项本地真实 HTTP 集成通过，涵盖 body、鉴权、422、302、取消与超时 | extensions/axios/tests/transport.test.mjs |
 | HTTP Mock | 2 项通过，最终请求匹配、业务适配、透传与失败分类 | extensions/mock/tests/mock.test.mjs |
 | Pinia | 3 项通过，迟到结果隔离、订阅取消、销毁和错误恢复 | extensions/pinia/tests/store.test.mjs |
@@ -40,7 +40,7 @@
 | L4 D01/D02/D05/D06 | 当前范围通过：查询/头/身份分支隔离、取消准备阶段与 Transport 信号、监听释放、Mock 共用准备、Pinia 迟到结果/订阅/销毁。D03/D04 不适用：未提供重试/缓存。 |
 | L5 S01—S05 | 已实现边界通过，保证有明确范围：普通配置数据自有字段/访问器、保留名、路径逃逸、原型字段、敏感诊断、Mock 鉴权准备和实际锁文件公告核对。Proxy 反射陷阱及受信任拦截器不属于无副作用保证；Chrome 重定向目标计数已验证，其他浏览器未验证。 |
 | L6 R01—R05 | 迭代继承、分支不复制整棵资源树、timer/listener 清理、观测失败不重发及核心依赖闭包已有证据；没有缓存或无界全局实体表。R04 性能结论不适用：没有进行性能/容量测量。 |
-| L7 V01—V06 | V01/V03/V04/V05 的当前本地范围通过；V02 未要求覆盖率，未声称全分支通过；V06 不适用：没有发布授权或实际发布。许可及浏览器边界使当前结果不能视为公开发布验收。 |
+| L7 V01—V06 | V01/V03/V04/V05 的当前本地范围通过；V02 未要求覆盖率，未声称全分支通过；V06 不适用：没有发布授权或实际发布。该历史验收不覆盖 registry 发布及所有浏览器。 |
 
 ## 包体与独立消费者
 
@@ -66,7 +66,7 @@ smoke 验证公共 ESM 导出、Mock 最终请求→核心列表→Pinia 状态�
 - const 声明按操作目录推导能力、继承补丁和资源位置，保留关系与成员动作类型，实体引用保留原声明并恢复 data 模式。resource<TModel>(config) 的单模型泛型无法再自动推导剩余配置参数，因此能力/关系仍是动态配置；可选第二泛型支持精确配置。动态声明、静态预设展开超过 12 层及分页模式保留运行时校验，不宣称无限类型推断。
 - 泛型不校验后端数据；普通数据对象只复制本地顶层数据字段，不承诺对第三方实例或任意响应树深冻结。对象访问器响应拒绝；配置 Proxy 陷阱不被沙箱化。
 - 不合作 Transport 可能在取消等待后继续工作；服务端已发生副作用无法由客户端取消撤销。后台观测由调用方管理自身资源，不阻塞已完成业务结果。
-- 包保持 private，license 为 UNLICENSED，没有公开分发许可或 LICENSE 授权文件；当前只完成本地包消费验证，不能认定可公开发布。没有 registry 写操作。
+- 本次历史验收只完成本地包消费验证，没有 registry 写操作。2026-11-16 已移除主包与扩展的 private，配置 public 发布访问级别，采用 MIT License，并在仓库及四个发布包中提供 LICENSE 文件；这些修正不代表已执行 registry 发布。
 
 API 依据分别参考 Axios 官方请求配置文档和 Pinia 官方 Setup Store 文档；本仓库行为以自身契约及实际测试为准：[Axios 请求配置](https://github.com/axios/axios-docs/blob/master/posts/en/req_config.md)、[Pinia Store](https://pinia.vuejs.org/core-concepts.html)。
 

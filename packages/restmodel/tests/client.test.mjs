@@ -235,8 +235,8 @@ test('actions and raw requests share preparation and preserve raw envelope', asy
       },
     },
   );
-  assert.equal(await api.$.actions.login({ name: 'n' }), 'ok');
-  assert.equal(await api.users(0).$.actions.disable({ reason: 'x' }), 'ok');
+  assert.equal(await api.login({ name: 'n' }), 'ok');
+  assert.equal(await api.users(0).disable({ reason: 'x' }), 'ok');
   assert.deepEqual((await api.$.request({ method: 'GET', path: '/health' })).body, { data: 'ok' });
   assert.deepEqual(
     requests.map((r) => r.url),
@@ -359,8 +359,12 @@ test('errors expose stable classification while default diagnostics redact raw c
   assert.ok(!inspect(error).includes('TOKEN'));
 });
 
-test('Fetch transport sends real local HTTP and refuses redirects', async (t) => {
-  const server = createServer((req, res) => {
+test('default Fetch and explicit Fetch send real RESTful HTTP and refuse redirects', async (t) => {
+  const requests = [];
+  const server = createServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    requests.push({ method: req.method, url: req.url, body });
     if (req.url === '/api/redirect') {
       res.writeHead(302, { location: '/api/users' });
       res.end();
@@ -372,7 +376,8 @@ test('Fetch transport sends real local HTTP and refuses redirects', async (t) =>
       return;
     }
     res.setHeader('content-type', 'application/json');
-    res.end(JSON.stringify([{ id: 0, path: req.url }]));
+    const record = { id: 0, path: req.url, ...(body ? JSON.parse(body) : {}) };
+    res.end(JSON.stringify(req.method === 'GET' && !req.url.endsWith('/0') ? [record] : record));
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(
@@ -382,18 +387,32 @@ test('Fetch transport sends real local HTTP and refuses redirects', async (t) =>
         server.close(resolve);
       }),
   );
-  const api = createClient({
-    baseURL: `http://127.0.0.1:${server.address().port}/api`,
-    transport: fetchTransport(),
-    resources: { users: resource({ operations: ['list'] }) },
-  });
-  const list = await api.users.query({ name: '中/a' }).list();
-  assert.equal(list.items[0].path, '/api/users?name=%E4%B8%AD%2Fa');
-  await assert.rejects(api.$.request({ method: 'GET', path: 'missing' }), { kind: 'http' });
-  await assert.rejects(
-    api.$.request({ method: 'GET', path: 'redirect' }),
-    (error) => error.kind === 'http' && error.response.status === 302,
-  );
+  for (const override of [{}, { transport: undefined }, { transport: fetchTransport() }]) {
+    const api = createClient({
+      baseURL: `http://127.0.0.1:${server.address().port}/api`,
+      ...override,
+      resources: { users: resource({ operations: ['list', 'get', 'post', 'patch'] }) },
+    });
+    const list = await api.users.query({ name: '中/a' }).list();
+    assert.equal(list.items[0].path, '/api/users?name=%E4%B8%AD%2Fa');
+    assert.equal((await api.users(0).get()).id, 0);
+    assert.equal((await api.users.post({ name: 'created' })).name, 'created');
+    assert.equal((await api.users(0).patch({ name: 'updated' })).name, 'updated');
+    assert.deepEqual(requests.slice(-2), [
+      { method: 'POST', url: '/api/users', body: '{"name":"created"}' },
+      { method: 'PATCH', url: '/api/users/0', body: '{"name":"updated"}' },
+    ]);
+    await assert.rejects(api.$.request({ method: 'GET', path: 'missing' }), { kind: 'http' });
+    await assert.rejects(
+      api.$.request({ method: 'GET', path: 'redirect' }),
+      (error) => error.kind === 'http' && error.response.status === 302,
+    );
+    const count = requests.length;
+    const cancelled = new AbortController();
+    cancelled.abort();
+    await assert.rejects(api.users.with({ signal: cancelled.signal }).list(), { kind: 'cancel' });
+    assert.equal(requests.length, count);
+  }
 });
 
 test('operation scheme overrides reuse capabilities and do not leak between calls', async () => {
@@ -729,4 +748,277 @@ test('service root baseURL is usable and invalid raw paths retain configuration 
   await api.users.list();
   assert.equal(requests[0].url, '/users');
   assert.throws(() => api.$.request({ method: 'GET', path: 42 }), ResourceConfigurationError);
+});
+
+test('invalid explicit transport is rejected instead of falling back to Fetch', () => {
+  for (const transport of [null, false, 1, 'fetch', {}]) {
+    assert.throws(
+      () => createClient({ baseURL: '/api', resources: {}, transport }),
+      (error) =>
+        error instanceof ResourceConfigurationError && error.message.includes('client.transport'),
+    );
+  }
+});
+
+test('standard operation exceptions preserve RESTful siblings, entity identity and scheme', async () => {
+  for (const mapping of [
+    { operation: 'get', path: 'getById', queryKey: 'id' },
+    { operation: 'get', path: 'getById/:id' },
+  ]) {
+    const { api, requests } = fixture(
+      { data: { id: 0, name: 'member' } },
+      {
+        scheme: { envelope: 'data' },
+        resources: { users: resource({ operations: ['list', 'put', 'post', mapping] }) },
+      },
+    );
+    const entity = await api.users(0).query({ id: 'wrong', active: true }).get();
+    const expected = mapping.queryKey
+      ? '/api/v1/users/getById?id=0&active=true'
+      : '/api/v1/users/getById/0?id=wrong&active=true';
+    assert.equal(requests[0].url, expected);
+    assert.equal(entity.id, 0);
+    await resourceOf(entity).put({ id: 0, name: 'updated' });
+    assert.equal(requests[1].url, '/api/v1/users/0');
+    assert.equal(requests[1].method, 'PUT');
+    await resourceOf(entity).get();
+    assert.equal(
+      requests[2].url,
+      mapping.queryKey ? '/api/v1/users/getById?id=0' : '/api/v1/users/getById/0',
+    );
+    await api.users.post({ name: 'new' });
+    assert.equal(requests[3].url, '/api/v1/users');
+    assert.equal(requests[3].method, 'POST');
+    const encoded = mapping.queryKey ? 'id=a%2Fb+%E4%B8%AD' : 'a%2Fb%20%E4%B8%AD';
+    await api.users('a/b 中').get();
+    assert.ok(requests[4].url.endsWith(encoded));
+    await assert.rejects(api.users([1, 2]).get(), ResourceConfigurationError);
+    assert.equal(requests.length, 5);
+  }
+});
+
+test('nested resource exceptions remain relative to the logical resource, not a previous HTTP route', async () => {
+  const { api, requests } = fixture(
+    { id: 'p/q' },
+    {
+      resources: {
+        teams: resource({
+          operations: ['get'],
+          members: {
+            users: resource({
+              operations: ['list', { operation: 'get', path: 'getById/:id' }],
+              memberActions: {
+                approve: action({ method: 'POST', path: 'get' }),
+              },
+            }),
+          },
+        }),
+      },
+    },
+  );
+  const users = api.teams(8).users;
+  const member = await users('p/q').get();
+  assert.equal(requests[0].url, '/api/v1/teams/8/users/getById/p%2Fq');
+  await resourceOf(member).approve({ reason: 'yes' });
+  assert.equal(requests[1].url, '/api/v1/teams/8/users/p%2Fq/get');
+});
+
+test('direct actions have one entry, use independent HTTP paths and preserve branching', async () => {
+  const { api, requests } = fixture(
+    { data: { count: 2 } },
+    {
+      scheme: { envelope: 'data' },
+      actions: { login: action({ method: 'POST', path: '/get' }) },
+      resources: {
+        users: resource({
+          operations: ['list'],
+          actions: { search: action({ method: 'GET', path: 'get' }) },
+          memberActions: { approve: action({ method: 'POST', path: 'put' }) },
+        }),
+      },
+    },
+  );
+  assert.deepEqual(await api.users.search({ text: 'a/b' }), { count: 2 });
+  assert.equal(requests[0].url, '/api/v1/users/get?text=a%2Fb');
+  const wrapped = await api.users(0).with({ result: 'response' }).approve({ reason: 'yes' });
+  assert.equal(wrapped.response.status, 200);
+  assert.deepEqual(wrapped.data, { count: 2 });
+  assert.equal(requests[1].url, '/api/v1/users/0/put');
+  assert.equal(requests[1].body, '{"reason":"yes"}');
+  await api.login({ name: 'Ivan' });
+  assert.equal(requests[2].url, '/api/v1/get');
+  assert.equal(api.users.$.actions, undefined);
+  assert.equal(api.users.$.search, undefined);
+  assert.equal(api.$.actions, undefined);
+  assert.equal(api.users(0).search, undefined);
+  assert.equal(api.users.approve, undefined);
+  assert.equal(api.users.unknownAction, undefined);
+});
+
+test('direct action names conflict only with call slots and relations, not backend paths', () => {
+  for (const name of [
+    'get',
+    'post',
+    'query',
+    'page',
+    'cursor',
+    'with',
+    'then',
+    'name',
+    'length',
+    'bind',
+    '__proto__',
+  ]) {
+    const tree = { [name]: action({ method: 'GET', path: 'valid' }) };
+    assert.throws(() => resource({ actions: tree }), ResourceConfigurationError);
+    assert.throws(() => resource({ memberActions: tree }), ResourceConfigurationError);
+    assert.throws(
+      () => createClient({ baseURL: '/api', resources: {}, actions: tree }),
+      ResourceConfigurationError,
+    );
+  }
+  const search = action({ method: 'GET', path: 'get' });
+  assert.doesNotThrow(() => resource({ actions: { search } }));
+  assert.throws(
+    () => resource({ actions: { search }, children: { search: resource() } }),
+    ResourceConfigurationError,
+  );
+  assert.throws(
+    () => resource({ memberActions: { search }, members: { search: resource() } }),
+    ResourceConfigurationError,
+  );
+  assert.doesNotThrow(() => resource({ actions: { search }, members: { search: resource() } }));
+  assert.throws(
+    () => createClient({ baseURL: '/api', resources: { search: resource() }, actions: { search } }),
+    ResourceConfigurationError,
+  );
+});
+
+test('action path parameters are encoded once and removed from query/body without mutating input', async () => {
+  const { api, requests } = fixture(
+    { data: { done: true } },
+    {
+      scheme: { envelope: 'data' },
+      resources: {
+        users: resource({
+          actions: {
+            lookup: action({ method: 'GET', path: 'getById/:tenantId/:id' }),
+            approve: action({ method: 'POST', path: ':id/approve' }),
+            repeated: action({ method: 'GET', path: ':id/alias/:id' }),
+            forceBody: action({ method: 'GET', path: ':id/check', input: 'body' }),
+            forceQuery: action({ method: 'POST', path: ':id/check', input: 'query' }),
+          },
+        }),
+      },
+    },
+  );
+  const input = Object.freeze({ tenantId: 0, id: 'a/b 中%', detail: true });
+  assert.deepEqual(await api.users.lookup(input), { done: true });
+  assert.equal(requests[0].url, '/api/v1/users/getById/0/a%2Fb%20%E4%B8%AD%25?detail=true');
+  assert.equal(requests[0].body, undefined);
+  assert.deepEqual(Object.keys(input), ['tenantId', 'id', 'detail']);
+  const wrapped = await api.users.with({ result: 'response' }).approve({ id: 123, reason: 'yes' });
+  assert.equal(wrapped.response.status, 200);
+  assert.deepEqual(wrapped.data, { done: true });
+  assert.equal(requests[1].url, '/api/v1/users/123/approve');
+  assert.equal(requests[1].body, '{"reason":"yes"}');
+  await api.users.approve({ id: 0 });
+  assert.equal(requests[2].body, undefined);
+  await api.users.repeated({ id: 7 });
+  assert.equal(requests[3].url, '/api/v1/users/7/alias/7');
+  await api.users.forceBody({ id: 2, detail: true });
+  assert.equal(requests[4].body, '{"detail":true}');
+  await api.users.query({ stable: 1 }).forceQuery({ id: 3, detail: true });
+  assert.equal(requests[5].url, '/api/v1/users/3/check?stable=1&detail=true');
+  assert.equal(requests[5].body, undefined);
+});
+
+test('action templates work at service root, nested resources and member positions', async () => {
+  const { api, requests } = fixture('ok', {
+    actions: { lookup: action({ method: 'GET', path: '/tenants/:tenantId/users/:id' }) },
+    resources: {
+      teams: resource({
+        members: {
+          users: resource({
+            actions: { lookup: action({ method: 'GET', path: ':id' }) },
+            memberActions: { audit: action({ method: 'POST', path: 'audits/:auditId' }) },
+          }),
+        },
+      }),
+    },
+  });
+  await api.lookup({ tenantId: 0, id: 'a/b' });
+  await api.teams(7).users.lookup({ id: 1 });
+  await api.teams(7).users(1).audit({ auditId: 9, reason: 'yes' });
+  assert.deepEqual(
+    requests.map((r) => r.url),
+    [
+      '/api/v1/tenants/0/users/a%2Fb',
+      '/api/v1/teams/7/users/1',
+      '/api/v1/teams/7/users/1/audits/9',
+    ],
+  );
+  assert.equal(requests[2].body, '{"reason":"yes"}');
+});
+
+test('invalid action path input fails before preparation and never invokes input getters', async () => {
+  let preparations = 0;
+  let reads = 0;
+  const { api, requests } = fixture('ok', {
+    prepareRequest: (request) => {
+      preparations++;
+      return request;
+    },
+    resources: {
+      users: resource({ actions: { lookup: action({ method: 'GET', path: ':tenantId/:id' }) } }),
+    },
+  });
+  for (const input of [
+    undefined,
+    {},
+    { tenantId: 1 },
+    { tenantId: 1, id: undefined },
+    ...[null, false, '', '.', '..', NaN, Infinity, [], {}, '\ud800'].map((id) => ({
+      tenantId: 1,
+      id,
+    })),
+    Object.create({ tenantId: 1, id: 2 }),
+    {
+      tenantId: 1,
+      get id() {
+        reads++;
+        return 2;
+      },
+    },
+    {
+      tenantId: 1,
+      id: 2,
+      get detail() {
+        reads++;
+        return true;
+      },
+    },
+  ])
+    await assert.rejects(api.users.lookup(input), ResourceConfigurationError);
+  assert.equal(reads, 0);
+  assert.equal(preparations, 0);
+  assert.equal(requests.length, 0);
+});
+
+test('action template syntax and static path safety are validated during declaration', () => {
+  for (const path of [
+    ':',
+    ':id?',
+    'prefix-:id',
+    ':a-b',
+    ':1id',
+    '../:id',
+    '%2e%2e/:id',
+    'https://elsewhere.test/:id',
+    '//elsewhere/:id',
+    ':id/#fragment',
+  ]) {
+    assert.throws(() => action({ method: 'GET', path }), ResourceConfigurationError);
+  }
+  assert.doesNotThrow(() => action({ method: 'GET', path: '/lookup/:id' }));
 });

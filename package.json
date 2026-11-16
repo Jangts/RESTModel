@@ -15,10 +15,17 @@
     "format:check": "prettier --check \"{packages,extensions,development}/**/*.{ts,mts,mjs}\"",
     "check:packages": "pnpm build && node development/check-packages.mjs",
     "check:browser": "pnpm build && node development/check-browser.mjs",
-    "check": "pnpm typecheck && pnpm test && pnpm format:check && node development/check-packages.mjs && node development/check-browser.mjs"
+    "check": "pnpm typecheck && pnpm test && pnpm format:check && node development/check-packages.mjs && node development/check-browser.mjs",
+    "docs:dev": "pnpm --dir apps/docs dev",
+    "docs:build": "pnpm --dir apps/docs build",
+    "docs:preview": "pnpm --dir apps/docs preview",
+    "docs:check": "pnpm --dir apps/docs check",
+    "docs:deploy": "node apps/docs/scripts/deploy.mjs"
   },
   "devDependencies": {
     "prettier": "3.6.2",
-    "typescript": "~5.9.3"
-  }
+    "typescript": "~5.9.3",
+    "vitepress": "1.6.4"
+  },
+  "license": "MIT"
 }

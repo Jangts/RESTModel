@@ -1,4 +1,11 @@
-import { createClient, resource, fetchTransport, type ResourceList } from '@restmodel/core';
+import {
+  createClient,
+  resource,
+  fetchTransport,
+  action,
+  type ResourceList,
+  type OperationDeclaration,
+} from '@restmodel/restmodel';
 import { axiosTransport } from '@restmodel/axios';
 import { withMock } from '@restmodel/mock';
 import { defineResourceStore } from '@restmodel/pinia';
@@ -43,3 +50,43 @@ relatedWrapped.then((value) => {
   void status;
 });
 void related;
+
+const lookup = {
+  operation: 'get',
+  path: 'getById',
+  queryKey: 'id',
+} as const satisfies OperationDeclaration;
+const flexible = createClient({
+  baseURL: '/api',
+  resources: {
+    users: resource({
+      operations: ['list', lookup],
+      actions: {
+        search: action<{ name: string }, { count: number }>({ method: 'GET', path: 'get' }),
+      },
+    }),
+  },
+});
+flexible.users(0).get();
+const count: Promise<{ count: number }> = flexible.users.search({ name: 'x' });
+void count;
+// @ts-expect-error action input is checked across the tarball boundary
+flexible.users.search({ name: 1 });
+// @ts-expect-error only one action invocation entry exists
+flexible.users.$.actions.search({ name: 'x' });
+// @ts-expect-error operation object does not grant undeclared writes
+flexible.users(0).delete();
+
+const actionPaths = createClient({
+  baseURL: '/api',
+  resources: {
+    users: resource({
+      actions: {
+        lookup: action({ method: 'GET', path: ':tenantId/:id' }),
+      },
+    }),
+  },
+});
+actionPaths.users.lookup({ tenantId: 0, id: 'a/b', detail: true });
+// @ts-expect-error placeholder inference survives published declaration boundaries
+actionPaths.users.lookup({ id: 1 });

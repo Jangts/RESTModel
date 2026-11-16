@@ -1,16 +1,15 @@
 # 客户端与 HTTP 执行
 
-本参考描述当前实现。资源能力声明及预设语义见[操作声明](operations.md)。所有入口均从 `@restmodel/core` 导入，模型类型不证明响应已经运行时校验。
+本参考描述当前实现。资源能力声明及预设语义见[操作声明](operations.md)。所有入口均从 `@restmodel/restmodel` 导入，模型类型不证明响应已经运行时校验。
 
 ## 最小调用
 
 ```ts
-import { createClient, resource, fetchTransport } from '@restmodel/core';
+import { createClient, resource } from '@restmodel/restmodel';
 
 interface User { id: number; name: string }
 const api = createClient({
   baseURL: 'https://example.test/api/v1',
-  transport: fetchTransport(),
   resources: { users: resource<User>({ operations: ['list', 'get', 'post', 'patch'] }) },
 });
 const users = await api.users.list();
@@ -22,6 +21,8 @@ await api.users(0).patch({ name: 'New name' });
 示例需要调用方提供可访问的 REST 服务。Node 使用 22 或以上；浏览器需要现代 Fetch、AbortController、FormData 等 Web API。相对 `/api` 服务地址由浏览器解析，Node 网络执行请使用绝对 HTTP(S) 地址。
 
 list/post 作用集合，get/put/patch/delete 作用成员或单体。不支持的能力与错误位置在鉴权准备和实际 Transport 前拒绝。绑定身份返回新引用，0 有效；复合身份使用有序元组，各片段分别编码，身份中的 `/` 不变成层级。空字符串、点段 . / ..、空或稀疏身份元组和无效 Unicode 会在请求前拒绝，避免 URL 归一化改变目标。身份数组不会调用调用方自定义的 map/迭代器或元素访问器。单体不能再次绑定身份。
+
+默认通过内置 Fetch 执行真实 HTTP 请求，不必传入 transport。需要复用 Axios 等 HTTP 执行器时，可显式设置 transport；自定义执行器接收最终 HTTP 请求，不负责资源操作推导。底层 executeHttp 接口仍要求显式执行器。
 
 ## 分支与请求设置
 
@@ -43,7 +44,7 @@ with 仅接受 headers/signal/timeout/result，不能任意修改 scheme。resul
 ## 服务规则
 
 ```ts
-import { defineScheme } from '@restmodel/core';
+import { defineScheme } from '@restmodel/restmodel';
 const scheme = defineScheme({
   identity: 'userId',
   envelope: 'data',
@@ -58,14 +59,50 @@ const scheme = defineScheme({
 
 当前操作配置可声明 `{ method: 'PUT', scheme: { envelope: false } }`，只适配该能力，不新增操作。同步适配函数误返回 Promise 时拒绝，避免把 Promise 当作业务值。
 
+## 标准操作的接口例外
+
+按操作语义与身份映射选择配置：
+
+| 场景 | 配置 | 调用 |
+| --- | --- | --- |
+| 标准 RESTful 接口 | 标准操作名 | `api.users(id).get()` |
+| 标准操作只有单身份地址例外 | 操作覆盖，配置 queryKey 或一个 `:id` | `api.users(id).get()` |
+| 多业务入参或额外行为 | actions/memberActions，独立配置 path | `api.users.lookup(input)` 或 `api.users(id).approve(input)` |
+
+单身份规则针对标准操作的局部地址映射，不限制普通 list 的筛选条件或模型请求体字段。多参数接口例外使用 action，不继续增加标准操作占位符。
+
+同一资源只有某项操作的 HTTP 地址不同，仍配置为该标准操作，不必改成 action：
+
+```ts
+import { createClient, resource, action } from '@restmodel/restmodel';
+const api = createClient({
+  baseURL: '/api',
+  resources: {
+    users: resource({
+      operations: [
+        'list', 'put', 'post',
+        { operation: 'get', path: 'getById', queryKey: 'id' },
+      ],
+      actions: {
+        search: action({ method: 'GET', path: 'get' }),
+      },
+    }),
+  },
+});
+await api.users(123).get();             // GET /api/users/getById?id=123
+await api.users.search({ name: 'Ivan' }); // GET /api/users/get?name=Ivan
+```
+
+将 get 配置换成 `{ operation: 'get', path: 'getById/:id' }`，同样调用会请求 `/api/users/getById/123`。list、put、post 继续使用标准 RESTful 路径。身份 0 有效；身份按 URL 片段或查询值编码，不直接拼接。get 仍执行 scheme 和实体包装，后续实体操作使用逻辑资源身份。完整规则见[操作声明](operations.md#操作路径与身份映射)。
+
 ## 关系、列表与实体
 
 resource 的 children 声明当前集合或单体的子资源，members 声明集合成员的子资源；单体不接受 members/memberActions。资源键默认对应路径，可用相对 path 覆盖。所有关系都必须显式声明。
 
 ```ts
-import { resourceOf, dataOf } from '@restmodel/core';
+import { resourceOf, dataOf } from '@restmodel/restmodel';
 const related = createClient({
-  baseURL: 'https://example.test/api', transport: fetchTransport(),
+  baseURL: 'https://example.test/api',
   resources: {
     users: resource<User>({ operations: '*', members: {
       profile: resource({ kind: 'singleton', operations: ['get'] }),
@@ -81,25 +118,56 @@ if (user) {
 
 list 返回 ResourceList：items 为普通数组，结果对象可迭代，total 为 number 或 undefined，page 只包含已知请求及 next 信息。裸数组不以数组长度冒充 total；非数组列表或错误元信息抛 response-shape。
 
-对象返回本地数据快照代理，Object.keys、展开和 JSON 反映数据；元信息存 WeakMap。数据字段优先，已声明且不冲突的关联可在运行时以属性读取；TypeScript 使用 `$.child(name)` 或 `resourceOf(entity)` 作为稳定入口。可推导的 const 声明按能力白名单、预设补丁和集合/成员/单体位置裁剪终端方法，保留具名关系及动作输入输出；动态配置仍执行运行时校验。只写 resource<TModel>(config) 时因 TypeScript 无法同时推导剩余类型参数，保留位置与模型类型，但配置能力和关系仍采用动态类型；需要同时保留精确配置时可用 resource<TModel, typeof config>(config)。分页模式仍在运行时校验，动态关系模型为 unknown，不凭泛型信任后端数据。
+对象返回本地数据快照代理，Object.keys、展开和 JSON 反映数据；元信息存 WeakMap。数据字段优先，已声明且不冲突的关联可在运行时以属性读取；TypeScript 使用 `$.child(name)` 或 `resourceOf(entity)` 作为稳定入口。可推导的 const 声明按能力白名单、预设补丁和集合/成员/单体位置裁剪终端方法，保留具名关系及动作输入输出；动态配置仍执行运行时校验。只写 `resource<TModel>(config)` 时因 TypeScript 无法同时推导剩余类型参数，保留位置与模型类型，但配置能力和关系仍采用动态类型；需要同时保留精确配置时可用 `resource<TModel, typeof config>(config)`。分页模式仍在运行时校验，动态关系模型为 unknown，不凭泛型信任后端数据。
 
 get 的地址身份优先；集合返回记录与 post 结果按 identity 推导身份。缺失身份仍可读数据，需要身份的后续操作抛 identity，不构造 undefined 路径。实体后续引用清除原请求的 query/page/cursor，并恢复 data 返回模式，保留 headers/signal/timeout 和资源规则；调用者可重新追加查询。直接在显式引用上绑定身份或访问子资源，仍继承显式链状态，子资源也继承 result 模式。本地字段修改不会自动请求，不全局合并实体。数组和 Date、Map、Blob 等非普通对象原样返回，不附加实体元信息；resourceOf 对这些实例报 response-shape。标量/null 不伪装对象；204/205/无正文返回 undefined，不补发 GET。
 
 ## 特殊动作与 raw HTTP
 
 ```ts
-import { action } from '@restmodel/core';
+import { action } from '@restmodel/restmodel';
 const service = createClient({
-  baseURL: 'https://example.test/api', transport: fetchTransport(), resources: {},
+  baseURL: 'https://example.test/api', resources: {},
   actions: { login: action<{ name: string }, { token: string }>({ method: 'POST', path: '/auth/login' }) },
 });
-const token = await service.$.actions.login({ name: 'Ivan' });
+const token = await service.login({ name: 'Ivan' });
 const response = await service.$.request({ method: 'GET', path: '/health' });
 ```
 
-actions 属于当前集合或单体，memberActions 属于集合成员，通过 `ref.$.actions` 调用。method 必填；path 缺省声明名，GET/DELETE/HEAD/OPTIONS 默认输入在 query，其他在 body，可用 input 指定。动作共享业务判定和 envelope，默认不做列表或实体包装，不进入标准星号。
+actions 属于当前集合或单体，memberActions 属于集合成员，按声明名直接调用，例如 `api.users.search(input)`、`api.users(id).approve(input)`；服务根动作使用 `api.login(input)`。不提供第二套动作入口。method 必填；path 缺省声明名，GET/DELETE/HEAD/OPTIONS 默认输入在 query，其他在 body，可用 input 指定。动作共享业务判定和 envelope，默认不做列表或实体包装，不进入标准星号。声明名是调用名，path 是后端路径，两者独立：search 可映射到 get 路径。调用名不能占用标准操作、query/page/cursor/with、JavaScript 保留属性或同位置关系名；冲突在配置时拒绝，重新命名动作即可，不限制后端路径。
 
 raw HTTP 共用准备、编码与执行，但返回原始 HttpResponse，不套资源信封。`/` 开头 path 从服务 baseURL 路径根计算，保留 /api；禁止跨服务绝对 URL、协议相对 URL、点段和路径逃逸。资源或动作保留 `$`、then、__proto__、prototype、constructor。控制名冲突的已声明关系通过 `$.child(name)` 访问；动态根资源通过 `api.$.resource(name)` 访问。
+
+## 动作路径参数
+
+动作可通过 `:name` 从输入对象提取多个具名路径参数，剩余字段再按 method 的默认规则或显式 input 进入 query/body：
+
+```ts
+import { createClient, resource, action } from '@restmodel/restmodel';
+const api = createClient({
+  baseURL: '/api',
+  resources: {
+    users: resource({
+      actions: {
+        lookup: action({ method: 'GET', path: 'getById/:tenantId/:id' }),
+        approve: action({ method: 'POST', path: ':id/approve' }),
+      },
+    }),
+  },
+});
+await api.users.lookup({ tenantId: 7, id: 123, detail: true });
+// GET /api/users/getById/7/123?detail=true
+await api.users.approve({ id: 123, reason: '通过' });
+// POST /api/users/123/approve，JSON body: { reason: '通过' }
+```
+
+占位符必须是完整路径片段，名称由字母或下划线开头，后接字母、数字或下划线。同一字段可在路径中重复使用。参数必须是非空字符串或有限数字，0 有效；按单个片段编码，`a/b` 编码为 `a%2Fb`，不会变成多层路径。缺参、null、数组、对象、空字符串、点段及无效 Unicode 均在请求前拒绝，不执行 prepareRequest 或 Transport。
+
+带占位符的动作接收普通对象的自有数据字段，不读取原型字段，不调用 getter，不修改输入对象。已消费字段仅从动作输入中移除，不重复进入 query/body；链式 query 中显式设置的字段仍保留。全部字段都用于路径时，不额外发送空 body。没有占位符的动作保持原有输入契约，包括 query 的 URLSearchParams 和 body 的 FormData/Blob 等。
+
+path 相对于当前引用路径；`/` 开头从服务 baseURL 的路径根计算。成员动作仍包含已绑定成员身份，不会自动用成员身份填补输入占位符；占位字段始终来自此次动作输入。不增加 input: 'path'，因为同一次请求可同时包含路径与 query/body。
+
+未显式指定输入泛型时，字面量 path 可推导必填路径字段。显式声明输入泛型时，应将路径字段和剩余业务字段一起写入输入类型；动态字符串路径始终由运行时检查。标准操作的 `:id`/queryKey 仍只映射一个绑定身份，多业务参数使用 action。
 
 ## 执行、错误和扩展
 

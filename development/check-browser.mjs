@@ -49,7 +49,7 @@ async function serve(request, response) {
   if (url.pathname === '/extension/index.js')
     filename = join(root, 'extensions/axios/dist/index.js');
   if (/^\/core\/[\w/-]+\.js$/u.test(url.pathname))
-    filename = join(root, 'packages/core/dist', url.pathname.slice(6));
+    filename = join(root, 'packages/restmodel/dist', url.pathname.slice(6));
   if (!filename) {
     response.writeHead(404);
     response.end();

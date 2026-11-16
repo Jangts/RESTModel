@@ -5,3 +5,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+apps/docs/.generated/
+apps/docs/.vitepress/cache/

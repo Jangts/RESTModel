@@ -14,6 +14,8 @@ export type {
   Operations,
   OperationMap,
   OperationOverride,
+  OperationDeclaration,
+  OperationEntry,
   ResolvedOperation,
   ResolvedOperations,
 } from './operations.js';

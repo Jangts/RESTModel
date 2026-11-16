@@ -2,13 +2,19 @@
 
 本文件是实施记录，不是公共 API 参考。
 
-## 实施基线
+## 当前实施基线
 
-- core 已实现资源声明、能力目录、预设快照、createClient、不可变引用、HTTP 编码与执行、scheme、分页、特殊动作、raw HTTP、列表及实体关联。
-- Fetch Transport 属于 core 的可选工厂；Axios、HTTP Mock、Pinia 由各扩展独立提供，只使用公开 core 入口。
-- scheme 当前使用 identity/envelope/success/map/pagination，具体签名和限制以[客户端参考](../client.md)为准。原架构文档保留为设计比较，不以旧草案字段作为当前合同。
-- 模型输入输出、资源名、操作位置及可推导 const 声明的能力/关系/动作均有类型约束。动态配置、宽泛型与分页模式仍需运行时校验；深预设的静态能力展开限定 12 层，不宣称无限类型推断。
-- 全部包仍为 private 开发包，license 标注 UNLICENSED；未指定公开分发许可，未执行 registry 发布。
+- 主包为 @restmodel/restmodel，目录 packages/restmodel；三个扩展为 @restmodel/axios、@restmodel/mock、@restmodel/pinia，按公共包独立声明兼容范围。四包采用 MIT，包含 LICENSE，配置 public 访问级别；均未执行 npm 发布。根工作区和文档应用保持 private。
+- createClient 默认通过内置 Fetch 执行真实 HTTP。transport 只在替换 HTTP 执行器时配置，低层 executeHttp 仍要求显式执行器。Axios、HTTP Mock、Pinia 只消费主包公开入口。
+- 标准操作数组可混合操作名与 `{ operation, method?, scheme?, path?, queryKey? }`。单身份地址映射保留标准操作位置、scheme 与实体语义；多参数接口例外走 action。默认标准路径原有复合身份支持不变。
+- action 仅按声明名直接调用，动作名与后端 path 独立。path 支持多个具名完整片段，从输入对象提取并逐片段编码；已消费字段不再进入 query/body。字面量路径推导必填字段，缺参、非法值和访问器在请求前拒绝。成员动作与集合动作按位置区分，名称冲突在配置时拒绝。
+- scheme 使用 identity/envelope/success/map/pagination。资源引用、分页、raw HTTP、列表与实体关联的当前合同以[客户端参考](../client.md)及[操作声明](../operations.md)为准；设计草案不作为可执行接口依据。
+- 模型泛型不执行响应校验。精确 const 配置保留能力、位置、关系和动作输入输出；动态配置、宽泛型及分页模式仍需运行时校验。预设类型展开深度上限为 12 层。
+- 双语文档沿用 /zh/、/en/ 对等路径及语言偏好入口，托管在自建 Pages。站点维护与部署证据见[维护说明](../../apps/docs/README.md)及[部署记录](../../apps/docs/docs/deployment.md)。
+
+## 最近一次代码验证
+
+action 路径参数实现后的完整 pnpm check 已通过：73 项行为测试、源码和独立消费者类型检查、四包真实 tarball 消费，以及 Chrome 16 项 HTTP 检查。该结果是既有代码验证记录，本次文档整理不重复运行全套代码测试，也不代表已执行远端 CI 或 npm 发布。
 
 ## 工程与验证
 

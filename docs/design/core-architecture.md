@@ -2,6 +2,8 @@
 
 状态：历史设计草案，部分方向已实现，具体接口以[客户端参考](../client.md)和[操作声明](../operations.md)为准。下列示例保留设计比较用途，不能作为当前签名依据。本文不修改现有包边界、不提前承诺完整兼容旧接口。
 
+现行入口已收敛为：默认 Fetch；标准操作支持单身份路径/query 例外；多参数接口使用具名路径 action，动作按声明名直接调用。以下草案中其他语法只保留设计对照用途。
+
 ## 1. 设计目标与成功标准
 
 RESTModel 服务 RESTful HTTP API 及其变体。保留资源模型、链式操作、返回资源继续访问关联能力。标准接口由约定推导，scheme 描述服务的共性差异，特殊接口显式声明。主包与 Axios 解耦，不与 HTTP 解耦。
@@ -43,7 +45,7 @@ reactive-mp/packages 的 shared → reactivity → runtime/store → 聚合入�
 ## 4. 最小接入与资源树
 
 ```ts
-import { createClient, resource } from '@restmodel/core'
+import { createClient, resource } from '@restmodel/restmodel'
 import { axiosTransport } from '@restmodel/axios'
 
 interface User { id: number; name: string }
@@ -124,7 +126,7 @@ query/page/with/绑定身份均返回新上下文；不发请求，执行方法�
 
 page 与原始分页 query 同时出现时，page 生成的字段覆盖同名 query，不受链式方法先后影响；文档必须说明。重建分页条件可通过新链完成。
 
-控制方法名（get/list/query 等）与资源名冲突时，显式 `ref.$.child(name)`/`ref.$.member(name)` 访问；Client 控制面统一在 `$`，例如 api.$.request/api.$.resource/api.$.actions，避免与 users 等资源键冲突。then 禁止被动态解释为资源，避免 Promise 同化。
+控制方法名（get/list/query 等）与资源名冲突时，显式 `ref.$.child(name)`/`ref.$.member(name)` 访问；Client 控制面统一在 `$`，例如 api.$.request/api.$.resource；自定义动作按声明名直接调用，例如 api.login()，避免与 users 等资源键冲突。then 禁止被动态解释为资源，避免 Promise 同化。
 
 ## 6. 统一返回值与关联能力
 
@@ -241,12 +243,12 @@ const api = createClient({
   },
 })
 
-await api.$.actions.login({ username: 'ivan', password })
-await api.users(123).$.actions.disable({ reason: 'requested' })
+await api.login({ username: 'ivan', password })
+await api.users(123).disable({ reason: 'requested' })
 // POST /api/v1/users/123/disable
 ```
 
-resource.actions 对集合/单体当前路径，memberActions 对集合成员路径；不混入普通资源字段，统一从 $.actions 调用。动作默认继承响应 envelope 和错误规则，不套分页或实体身份推导；返回资源模型需显式指定。
+resource.actions 对集合/单体当前路径，memberActions 对集合成员路径；按声明名直接调用，例如 api.users.search()、api.users(id).disable()；不提供第二套动作入口。动作默认继承响应 envelope 和错误规则，不套分页或实体身份推导；返回资源模型需显式指定。
 
 path 的 / 从服务 baseURL 的路径根算起（保留 /api/v1）；不允许借绝对 URL 默认跳出当前服务，跨服务用另一个客户端。子资源 path 不允许 ../。根级 path 与 HTTP URL 的 origin 语义必须区别，不直接套浏览器 URL 相对路径规则。
 
@@ -287,14 +289,14 @@ Mock 如 `withMock(realTransport, rules)`，匹配最终 method/URL/headers/body
 建议的候选依赖关系（仅设计，暂不创建包）：
 
 ```text
-@restmodel/http ← @restmodel/core
+@restmodel/http ← restmodel
        ↑                  ↑
  axios/mock 扩展       pinia 扩展
 ```
 
 `@restmodel/http`：中立 HTTP request/response/error 契约、URL/query/body 规范化、执行管线、取消/超时契约。可独立作为普通 HTTP 客户端使用，不需要资源树和 scheme；只定义 Transport 接口，具体实现仍由扩展提供。axios/mock 只需依赖 http；core 重导出必需 HTTP 公共类型，普通用户不用额外学习一个包。
 
-`@restmodel/core`：资源模型与链、操作注册表、RESTful 推导、scheme、特殊动作、返回建模。它是完整模型化客户端入口。
+`@restmodel/restmodel`：资源模型与链、操作注册表、RESTful 推导、scheme、特殊动作、返回建模。它是完整模型化客户端入口。
 
 http 与 core 都属于主包体系内逐级依赖的基础能力，由同项目承担兼容与发布验证；这不意味着 axios/mock/pinia 也成为随主包迭代的配套。基础包可独立版本但核心发布必须声明并验证依赖范围。
 

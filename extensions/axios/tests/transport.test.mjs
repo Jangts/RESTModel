@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import axios from 'axios';
-import { createClient, resource } from '@restmodel/core';
+import { createClient, resource } from '@restmodel/restmodel';
 import { axiosTransport } from '../dist/index.js';
 test('Axios performs real HTTP, preserves non-2xx, bodies, cancellation and redirects', async (t) => {
   let calls = 0;

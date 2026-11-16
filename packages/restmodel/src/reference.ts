@@ -10,7 +10,7 @@ import type {
   ResourceTree,
   ActionTree,
 } from './resource.js';
-import type { StandardOperation } from './operations.js';
+import type { StandardOperation, OperationEntry } from './operations.js';
 import type { standardOperations } from './operations.js';
 /** response 模式下的共同结果形态；动态模式返回联合类型。 */
 export type OperationResult<TValue, TResponse extends boolean> = TResponse extends true
@@ -69,8 +69,16 @@ type Disabled<TMap> = {
   StandardOperation;
 type LayerNames<TBase extends StandardOperation, TLayer> = TLayer extends '*'
   ? StandardOperation
-  : TLayer extends readonly StandardOperation[]
-    ? TBase | TLayer[number]
+  : TLayer extends readonly OperationEntry[]
+    ?
+        | TBase
+        | (TLayer[number] extends infer TEntry
+            ? TEntry extends StandardOperation
+              ? TEntry
+              : TEntry extends { operation: infer TName extends StandardOperation }
+                ? TName
+                : never
+            : never)
     : TLayer extends object
       ? Exclude<
           | TBase
@@ -187,7 +195,7 @@ interface ReferenceControls<
   TConfig extends ResourceConfig,
   TPosition extends ReferencePosition,
 > {
-  /** 无冲突的显式关系和动作入口。 */
+  /** 无冲突的显式关系入口；动作按声明名直接调用。 */
   readonly $: {
     /** @param name 已声明关系名。 @returns 对应模型与能力的子资源引用。 */
     child<TName extends keyof Relations<TConfig, TPosition> & string>(
@@ -195,8 +203,6 @@ interface ReferenceControls<
     ): DefinitionReference<Relations<TConfig, TPosition>[TName], TResponse>;
     /** @param name 待查询关系名。 @returns 是否存在已声明关系。 */
     hasChild(name: string): boolean;
-    /** 按当前集合/成员/单体声明推导的特殊接口。 */
-    readonly actions: ActionFunctions<Actions<TConfig, TPosition>, TResponse>;
   };
   /** @param query 查询补丁。 @returns 新引用。 */
   query(query: Query): ResourceReference<TModel, TResponse, TConfig, TPosition>;
@@ -216,6 +222,7 @@ export type ResourceReference<
   TConfig extends ResourceConfig = ResourceConfig,
   TPosition extends ReferencePosition = 'dynamic',
 > = ReferenceControls<TModel, TResponse, TConfig, TPosition> &
+  ActionFunctions<Actions<TConfig, TPosition>, TResponse> &
   Pick<
     ReferenceOperations<TModel, TResponse, TConfig>,
     Extract<DeclaredNames<TConfig>, PositionNames<TPosition>>

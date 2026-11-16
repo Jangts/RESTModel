@@ -10,8 +10,8 @@ resource({ operations: ['login'] });
 resource({ operations: { '*': false } });
 // @ts-expect-error HTTP methods are uppercase
 resource({ operations: { get: { method: 'get' } } });
-// @ts-expect-error no unimplemented override fields
-resource({ operations: { get: { path: '/users' } } });
+// @ts-expect-error unknown operation override field
+resource({ operations: { get: { endpoint: 'users' } } });
 
 resource({ kind: undefined, operations: undefined, extends: undefined });
 defineResourcePreset({ operations: undefined, extends: undefined });

@@ -2,22 +2,35 @@
 <meta charset="utf-8">
 <title>RESTModel browser contract check</title>
 <script type="importmap">
-{"imports":{"@restmodel/core":"/core/index.js","axios":"/axios.js"}}
+{"imports":{"@restmodel/restmodel":"/core/index.js","axios":"/axios.js"}}
 </script>
 <pre id="result">RUNNING</pre>
 <script type="module">
-import {createClient, resource, resourceOf, fetchTransport, executeHttp} from '@restmodel/core';
+import {createClient, resource, resourceOf, executeHttp, action} from '@restmodel/restmodel';
 import {axiosTransport} from '/extension/index.js';
 import axios from 'axios';
 const checks=[];
 function check(value,label){if(!value)throw new Error(label);checks.push(label);}
 try {
-  const resources={users:resource({operations:'*'})};
-  const api=createClient({baseURL:'/api',transport:fetchTransport(),resources});
+  const resources={
+    users:resource({operations:'*',actions:{search:action({method:'GET',path:'get'}),lookup:action({method:'GET',path:'getById/:tenantId/:id'}),approvePath:action({method:'POST',path:':id/approve'})},memberActions:{approve:action({method:'POST',path:'put'})}}),
+    queryUsers:resource({path:'users',operations:[{operation:'get',path:'getById',queryKey:'id'}]}),
+    pathUsers:resource({path:'users',operations:[{operation:'get',path:'getById/:id'}]}),
+  };
+  const api=createClient({baseURL:'/api',resources});
   const list=await api.users.query({name:'中/a'}).list();
   check(list.items[0].id===0&&list.items[0].path.includes('name=%E4%B8%AD%2Fa'),'Fetch query/list');
   check((await resourceOf(list.items[0]).get()).path==='/api/users/0','Entity identity and cleared query');
   check((await api.users.post({name:'browser'})).name==='browser','JSON body');
+  const mapped=await api.queryUsers(0).query({id:'wrong'}).get();
+  check(mapped.path==='/api/users/getById?id=0','Query identity override');
+  check((await resourceOf(mapped).get()).path==='/api/users/getById?id=0','Mapped entity identity');
+  check((await api.pathUsers('a/b').get()).path==='/api/users/getById/a%2Fb','Template identity encoding');
+  check((await api.users.search({name:'browser'})).path==='/api/users/get?name=browser','Direct action alias and backend path');
+  check((await api.users(0).approve({reason:'yes'})).reason==='yes'&&api.users.$.actions===undefined,'Direct member action without secondary entry');
+  check((await api.users.lookup({tenantId:0,id:'a/b',detail:true})).path==='/api/users/getById/0/a%2Fb?detail=true','Named action path parameters and remaining query');
+  const approvedPath=await api.users.approvePath({id:123,reason:'yes'});
+  check(approvedPath.reason==='yes'&&approvedPath.id===0,'Path parameters removed from JSON body');
   const wrapped=await api.users(0).with({result:'response'}).with({result:undefined}).get();
   check(wrapped.response.status===200,'Response mode inheritance');
   const aborted=new AbortController();aborted.abort();

@@ -1,8 +1,8 @@
 /** Axios Transport：只消费 core 的公共 HTTP 契约，不推导资源或处理业务信封。 */
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
-import { decodeHttpBody } from '@restmodel/core';
-import type { Transport } from '@restmodel/core';
+import { decodeHttpBody } from '@restmodel/restmodel';
+import type { Transport } from '@restmodel/restmodel';
 /**
  * 复用 Axios 实例执行最终请求；实例拦截器属于调用方信任边界。
  * @param instance 可选已有实例；缺省创建隔离实例。

@@ -2,10 +2,21 @@
 
 ## 使用与项目规则
 
-- [项目边界](project-scope.md)：定位、主包与扩展职责。
-- [资源操作声明](operations.md)：能力白名单、星号、预设、覆盖和归一化。
+- [快速上手](getting-started.md)：环境、工作区消费与真实 RESTful 接口接入。
+- [扩展选型](extensions.md)：Fetch、Axios、HTTP Mock 与 Pinia。
+- [文档站维护](../apps/docs/README.md)：本地运行、内容来源与构建检查。
 
-- [客户端与 HTTP 执行](client.md)：资源链、scheme、分页、结果、动作和扩展契约。
+- [项目边界](project-scope.md)：定位、主包与扩展职责。
+- [资源操作声明](operations.md)：能力白名单、混合操作数组、预设、单身份地址映射与归一化。
+
+- [客户端与 HTTP 执行](client.md)：资源链、scheme、分页、实体结果、直接动作、多路径参数和扩展契约。
+
+## 英文使用参考
+
+- [Getting started](en/getting-started.md)
+- [Operation declarations](en/operations.md)
+- [Client and action path parameters](en/client.md)
+- [Extensions](en/extensions.md)
 
 ## 开发规范
 

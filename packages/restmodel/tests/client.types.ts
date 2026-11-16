@@ -47,11 +47,11 @@ const auth = createClient({
   resources: {},
   actions: { login: action<{ name: string }, { token: string }>({ method: 'POST' }) },
 });
-const token: Promise<{ token: string }> = auth.$.actions.login({ name: 'Ivan' });
+const token: Promise<{ token: string }> = auth.login({ name: 'Ivan' });
 // @ts-expect-error wrong action input
-auth.$.actions.login({ name: 123 });
+auth.login({ name: 123 });
 // @ts-expect-error undeclared action
-auth.$.actions.logout();
+auth.logout();
 void token;
 api.users.post(new FormData());
 
@@ -118,14 +118,14 @@ const profile: Promise<User | undefined> = refined.users(0).$.child('profile').g
 // @ts-expect-error exact relationship names are preserved
 refined.users(0).$.child('missing');
 // @ts-expect-error member actions do not appear on collection
-refined.users.$.actions.disable({ reason: 'x' });
-const disabled: Promise<{ done: boolean }> = refined.users(0).$.actions.disable({ reason: 'x' });
+refined.users.disable({ reason: 'x' });
+const disabled: Promise<{ done: boolean }> = refined.users(0).disable({ reason: 'x' });
 // @ts-expect-error member action input is checked
-refined.users(0).$.actions.disable({ reason: 1 });
+refined.users(0).disable({ reason: 1 });
 const disabledResponse: Promise<{ data: { done: boolean }; response: HttpResponse }> = refined
   .users(0)
   .with({ result: 'response' })
-  .$.actions.disable({ reason: 'x' });
+  .disable({ reason: 'x' });
 
 const fullConfig = {
   operations: ['list', 'get'],
@@ -182,3 +182,77 @@ const unchangedArray: readonly User[] = arrayResult;
 // @ts-expect-error arrays are not entity proxies and gain no relationship fields
 arrayResult.profile.get();
 void unchangedArray;
+
+const defaultHttp = createClient({
+  baseURL: '/api',
+  resources: { users: resource<{ id: number; name: string }>({ operations: ['list', 'get'] }) },
+});
+const defaultHttpUser: Promise<{ id: number; name: string } | undefined> = defaultHttp
+  .users(0)
+  .get();
+void defaultHttpUser;
+createClient({ baseURL: '/api', resources: {}, transport: undefined });
+// @ts-expect-error null must not silently select the default Transport
+createClient({ baseURL: '/api', resources: {}, transport: null });
+
+const mapped = createClient({
+  baseURL: '/api',
+  resources: {
+    users: resource({
+      operations: ['list', 'put', 'post', { operation: 'get', path: 'getById', queryKey: 'id' }],
+      actions: {
+        search: action<{ text: string }, { count: number }>({ method: 'GET', path: 'get' }),
+      },
+      memberActions: {
+        approve: action<{ reason: string }, { approved: boolean }>({ method: 'POST' }),
+      },
+    }),
+  },
+});
+mapped.users(0).get();
+mapped.users.search({ text: 'test' });
+const approved: Promise<{ approved: boolean }> = mapped.users(0).approve({ reason: 'valid' });
+void approved;
+// @ts-expect-error operation object retains member position
+mapped.users.get();
+// @ts-expect-error undeclared standard operation stays unavailable
+mapped.users(0).delete();
+// @ts-expect-error collection action is not a member action
+mapped.users(0).search({ text: 'test' });
+// @ts-expect-error direct action input remains checked
+mapped.users.search({ text: 1 });
+// @ts-expect-error action aliases are not installed on the control object
+mapped.users.$.search({ text: 'test' });
+// @ts-expect-error old nested action entry is removed
+mapped.users.$.actions.search({ text: 'test' });
+
+const pathActions = createClient({
+  baseURL: '/api',
+  resources: {
+    users: resource({
+      actions: {
+        lookup: action({ method: 'GET', path: 'getById/:tenantId/:id' }),
+        approve: action<{ id: number; reason: string }, { done: boolean }>({
+          method: 'POST',
+          path: ':id/approve',
+        }),
+        noParameters: action({ method: 'GET', path: 'search' }),
+      },
+    }),
+  },
+});
+pathActions.users.lookup({ tenantId: 0, id: 'a/b', detail: true });
+pathActions.users.noParameters();
+// @ts-expect-error path placeholders make the input required
+pathActions.users.lookup();
+// @ts-expect-error every inferred path placeholder is required
+pathActions.users.lookup({ id: 1 });
+// @ts-expect-error path parameters must be strings or numbers
+pathActions.users.lookup({ tenantId: 1, id: [] });
+const approvedPathAction: Promise<{ done: boolean }> = pathActions.users.approve({
+  id: 1,
+  reason: 'yes',
+});
+void approvedPathAction;
+// @ts-expect-error explicit business input types remain checked
+pathActions.users.approve({ id: 1, reason: 123 });
