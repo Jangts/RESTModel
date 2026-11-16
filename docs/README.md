@@ -28,8 +28,12 @@
 
 - [主包架构与 API 草案](design/core-architecture.md)：资源模型、拟议链式 API、scheme 与底层分层比较，不作为可执行使用指南。
 
+- [真实平台 Demo 与测试](../development/open-platforms/README.md)：终端入口、平台合同和单独运行的外部 API 集成测试。
+
 ## 维护资料
 
 - [开发状态与维护事项](maintenance/development-status.md)：实施范围、工具接入和发布准备。
 - [实施计划与验收门槛](maintenance/implementation-plan.md)：后续阶段、依赖、验证范围与下一实施单元。
 - [首版闭环验收记录](maintenance/runtime-verification.md)：实现范围、真实验证证据与未验证边界。
+
+- [开放平台验证](maintenance/open-platform-validation.md)：Gitee、GitHub 终端 Demo 与真实只读 API 集成测试。

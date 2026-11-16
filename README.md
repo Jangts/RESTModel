@@ -46,6 +46,18 @@ query/page/cursor/with 返回隔离的新引用；集合、成员和单体各有
 
 action 支持多个具名路径参数，例如 `path: 'getById/:tenantId/:id'`：`api.users.lookup({ tenantId: 7, id: 123, detail: true })` 请求 `/api/users/getById/7/123?detail=true`。已用于路径的字段不重复进入 query/body，详见[客户端参考](docs/client.md#动作路径参数)。
 
+## 真实平台 Demo 与集成测试
+
+终端 Demo 直接读取 Gitee Releases 或 GitHub Issues，输出实际请求、分页列表、实体后续读取和多路径参数 action 的仓库查询结果：
+
+```sh
+pnpm demo:gitee
+pnpm demo:github
+pnpm test:live
+```
+
+三条命令均先构建主包，使用默认 Fetch 访问公开 API，不需要 Token。live 测试单独运行，不包含在默认 test/check 中；网络或平台错误会使测试失败。平台配置、覆盖范围与运行说明见 [开放平台 Demo 与测试](development/open-platforms/README.md)。
+
 ## 本地开发与文档站
 
 使用 pnpm 8.10.5：

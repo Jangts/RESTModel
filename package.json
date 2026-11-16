@@ -20,7 +20,11 @@
     "docs:build": "pnpm --dir apps/docs build",
     "docs:preview": "pnpm --dir apps/docs preview",
     "docs:check": "pnpm --dir apps/docs check",
-    "docs:deploy": "node apps/docs/scripts/deploy.mjs"
+    "docs:deploy": "node apps/docs/scripts/deploy.mjs",
+    "test:live": "pnpm --filter @restmodel/restmodel build && node --test --test-concurrency=1 development/open-platforms/live.test.mjs",
+    "demo": "pnpm --filter @restmodel/restmodel build && node development/open-platforms/demo.mjs",
+    "demo:gitee": "pnpm demo gitee",
+    "demo:github": "pnpm demo github"
   },
   "devDependencies": {
     "prettier": "3.6.2",

@@ -26,6 +26,10 @@ pnpm check 统一执行全部检查；pnpm check:packages 和 pnpm check:browser
 
 执行证据和边界见[首版闭环验收记录](runtime-verification.md)，阶段顺序见[实施计划](implementation-plan.md)。本地 HTTP 与 Mock 证据不替代浏览器、外部真实服务、压力测试或公开发布验证。
 
+## 真实开放平台验证
+
+终端入口为 pnpm demo:gitee、pnpm demo:github；独立真实测试入口为 pnpm test:live。两个平台各四个真实接口子项已通过，覆盖分页、实体身份、成员后续调用与多路径参数 action。测试只请求公开 GET，不加入默认 test/check；详细事实与边界见[开放平台验证](open-platform-validation.md)。
+
 ## 后续边界
 
 后续按真实接入需要完善动态泛型体验、更多浏览器/平台验证和公开发布准备。缓存、自动重试、刷新鉴权队列不属于当前实现。没有独立 HTTP 消费证据之前不拆新包；已有 HTTP 公开函数可以独立于资源调用使用，但拆包仍需单独评估兼容成本。
