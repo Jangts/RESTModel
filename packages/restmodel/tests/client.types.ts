@@ -256,3 +256,45 @@ const approvedPathAction: Promise<{ done: boolean }> = pathActions.users.approve
 void approvedPathAction;
 // @ts-expect-error explicit business input types remain checked
 pathActions.users.approve({ id: 1, reason: 123 });
+
+const precise = resource({
+  operations: ['list', 'get', 'post', 'patch'],
+  members: { profile: resource({ kind: 'singleton', operations: ['get'] }).typed<User>() },
+  actions: { search: action({ method: 'GET', path: ':tenantId/:id' }) },
+  memberActions: { approve: action<{ reason: string }, { done: boolean }>({ method: 'POST' }) },
+}).typed<User>();
+const preciseApi = createClient({
+  baseURL: '/api',
+  resources: { users: precise },
+  defaults: { credentials: 'omit' },
+  prepareRequest(request, context) {
+    context.state.set(Symbol(), 'opaque');
+    return request;
+  },
+  processResponse(_response, context) {
+    const url: string = context.request.url;
+    void url;
+  },
+  onError(error, context) {
+    const signal: AbortSignal = context.signal;
+    void error;
+    void signal;
+  },
+});
+const preciseUser: Promise<User | undefined> = preciseApi.users(0).get();
+const preciseProfile: Promise<User | undefined> = preciseApi.users(0).profile.get();
+const preciseAction: Promise<{ done: boolean }> = preciseApi.users(0).approve({ reason: 'yes' });
+void preciseUser;
+void preciseProfile;
+void preciseAction;
+preciseApi.users.search({ tenantId: 1, id: 2 });
+// @ts-expect-error typed models do not reopen undeclared operations
+preciseApi.users(0).delete();
+// @ts-expect-error inferred relations are not widened
+preciseApi.users(0).missing.get();
+// @ts-expect-error inferred action path input remains required
+preciseApi.users.search({ id: 2 });
+// @ts-expect-error model input remains checked after binding
+preciseApi.users.post({ name: 123 });
+// @ts-expect-error credentials use a bounded public policy
+preciseApi.users.with({ credentials: 'whatever' });

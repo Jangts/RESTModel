@@ -149,5 +149,6 @@ export function buildRequest(
     headers: Object.freeze({ ...headers }),
     body: encoded,
     signal: settings.signal,
+    ...(settings.credentials === undefined ? {} : { credentials: settings.credentials }),
   });
 }

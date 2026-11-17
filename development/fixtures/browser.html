@@ -39,8 +39,18 @@ try {
   check(cancelled,'Request signal cancellation');
   let rejected=false;try{await api.$.request({method:'GET',path:'redirect'});}catch{rejected=true;}
   check(rejected,'Fetch redirect rejection');
-  const ax=createClient({baseURL:'/api',transport:axiosTransport(axios.create()),resources});
+  const ax=createClient({baseURL:'/api',transport:axiosTransport(axios.create({baseURL:'/api'})),resources});
   check((await ax.users.list()).items[0].id===0,'Axios browser adapter');
+  check((await ax.users(0).get()).path==='/api/users/0','Axios final URL ignores instance baseURL');
+  await fetch('/api/session');
+  for(const [name,client] of [['Fetch',api],['Axios',ax]]){
+    const omitted=await client.users(0).with({credentials:'omit'}).get();
+    check(omitted.cookie==='',`${name} credentials omit excludes browser cookie`);
+    for(const credentials of ['same-origin','include']){
+      const included=await client.users(0).with({credentials}).get();
+      check(included.cookie.includes('restmodel-session=browser'),`${name} credentials ${credentials} includes browser cookie`);
+    }
+  }
   rejected=false;try{await ax.$.request({method:'GET',path:'redirect'});}catch{rejected=true;}
   check(rejected,'Axios redirect rejection');
   const count=await (await fetch('/api/redirect-count')).json();

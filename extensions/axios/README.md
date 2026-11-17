@@ -29,4 +29,13 @@ const result = await api.users.list(); // 实际后端数组响应转成 Resourc
 
 可省略实例，由扩展创建隔离实例。非 2xx 返回正常 HttpResponse，由 core 统一分类；网络错误保留 cause。信封、鉴权准备、取消预算和资源推导仍归 core。执行器禁用自动重定向，避免默认跨 origin 转发凭据。
 
-已有 Axios 实例的 defaults/interceptors 属于调用方信任边界；它们可能改写请求，应由调用方核对最终网络行为。本扩展不使用其内部配置作为 core 公共类型。浏览器分支强制使用 Axios Fetch 适配器并设置 manual redirect；实际验收覆盖 Node HTTP 适配器及隔离 Chrome 157 的浏览器 Fetch 适配器，不代表所有浏览器或调用方自定义拦截器均已验证。
+
+## 执行与实例复用合同
+
+RESTModel 负责最终 URL。扩展逐请求设置 baseURL 为空，避免实例默认 `/api` 与最终 `/api/users` 叠加；不修改 instance.defaults。绝对地址和浏览器根相对地址都沿用主包已组装结果，Node 网络调用仍需绝对 HTTP(S) 地址。
+
+扩展设置 validateStatus 接受所有状态、responseType 为 text、transformResponse 为空，再用主包解码器处理 JSON/文本。Axios 成功响应拦截器先看到文本；非 2xx 不进入 Axios 失败拦截器，而由 core 分类为 http。鉴权清理等统一错误接入使用 createClient.onError。实例网络/超时/取消失败仍经过 Axios 失败分支；ECONNABORTED/ETIMEDOUT 归为 timeout，Axios 取消归为 cancel。
+
+Node 在未指定 credentials 时沿用实例适配器，默认 HTTP 适配器通过 maxRedirects: 0 禁用跳转。浏览器始终使用 Fetch 适配器；显式指定 omit/same-origin/include 时 Node 也使用 Fetch，精确映射到 Request.credentials，并设置 manual redirect。显式策略覆盖实例 withCredentials，未指定则沿用实例默认。Node 不会因此获得浏览器 Cookie 仓库。
+
+实例 defaults/interceptors 属于调用方信任边界，请求拦截器仍可改写设置，响应拦截器也可能改变返回形状；复用实例不代表任意既有拦截器都兼容。主包不泄漏 Axios 配置类型，不复制拦截器内部列表。

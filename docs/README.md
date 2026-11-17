@@ -9,7 +9,7 @@
 - [项目边界](project-scope.md)：定位、主包与扩展职责。
 - [资源操作声明](operations.md)：能力白名单、混合操作数组、预设、单身份地址映射与归一化。
 
-- [客户端与 HTTP 执行](client.md)：资源链、scheme、分页、实体结果、直接动作、多路径参数和扩展契约。
+- [客户端与 HTTP 执行](client.md)：资源链、scheme、分页迭代、实体结果、直接动作、多路径参数、请求生命周期与扩展契约。
 
 ## 英文使用参考
 
@@ -24,9 +24,11 @@
 - [代码规范](coding-standard.md)：书写、代码组织、文件组织与依赖要求。
 - [代码审查与验收规范](code-review-standard.md)：分层检查、证据要求与专项索引。
 
-## 设计提案
+## 设计与接入评估
 
 - [主包架构与 API 草案](design/core-architecture.md)：资源模型、拟议链式 API、scheme 与底层分层比较，不作为可执行使用指南。
+- [Cafe 接入评估](design/cafe-adoption-assessment.md)：以 RESTModel 为普通 HTTP 主方案的配置方向、应用合同适配、接入验证与收益；不代表已实施迁移。
+- [Cafe 库侧迭代](design/cafe-library-iteration-proposal.md)：已实现的请求上下文、受控响应处理、统一错误、Axios 地址、精确类型、凭据与分页辅助，以及实际接入边界。
 
 - [真实平台 Demo 与测试](../development/open-platforms/README.md)：终端入口、平台合同和单独运行的外部 API 集成测试。
 

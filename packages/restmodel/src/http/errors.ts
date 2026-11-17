@@ -5,6 +5,7 @@ export type RequestErrorKind =
   | 'unsupported-operation'
   | 'identity'
   | 'prepare'
+  | 'process'
   | 'network'
   | 'timeout'
   | 'cancel'

@@ -9,7 +9,7 @@ export const apiDescriptions = {
   ResourceConfig:
     'Resource configuration including capabilities, paths, schemes, relations and actions.',
   ResourceDefinition:
-    'Immutable resource declaration carrying model and configuration types; assemble it with createClient before calling operations.',
+    'Immutable resource declaration carrying model and configuration types. Call `typed<Model>()` to bind a model while preserving inferred capabilities, relations and actions.',
   standardOperations:
     'The shared catalog of standard operations, default HTTP methods and supported target positions.',
   ResourceConfigurationError:
@@ -48,6 +48,11 @@ export const apiDescriptions = {
     'Direct callable actions with typed business inputs and required parameters inferred from literal paths; backend paths remain independent.',
   ResourceList:
     'Iterable normalized list with an ordinary items array and known pagination metadata. Unknown total remains undefined.',
+  iteratePages:
+    'Lazily iterate data-mode page/offset resources without prefetching. Stops at an empty page, no content, or the known total when starting from page one; throws if maxPages is exhausted.',
+  PageSource: 'Structural data-mode resource contract accepted by iteratePages.',
+  PageIterationOptions:
+    'Positive integer size, start and maxPages limits; defaults are 100, 1 and 1000.',
   resourceOf:
     'Get the resource reference associated with an entity. Rejects values without entity metadata.',
   dataOf:
@@ -71,13 +76,19 @@ export const apiDescriptions = {
   RequestError:
     'Execution error with a stable kind. Raw request, response and cause are explicitly accessible but omitted from default diagnostics.',
   RequestErrorKind:
-    'Public execution error categories covering capabilities, identity, preparation, network, cancellation, HTTP and response adaptation.',
+    'Public execution error categories covering capabilities, identity, preparation, foreground processing, network, cancellation, HTTP and response adaptation.',
+  RequestContext:
+    'Per-request context shared by preparation, foreground response processing and error notification. Its private symbol-keyed state is cleared on completion and never sent to the Transport.',
+  CredentialsMode:
+    'Fetch-compatible omit, same-origin or include credentials policy; explicit Authorization headers are independent.',
   HttpRequest: 'Final HTTP request contract received by a Transport.',
   HttpResponse: 'HTTP response containing status, headers and decoded body.',
   Transport:
     'Executor receiving a prepared request and returning a response. Implementations must support cancellation and avoid automatic redirects.',
-  HttpOptions: 'HTTP preparation, observation and execution settings.',
-  RequestOptions: 'Per-call headers, cancellation signal, timeout and result mode.',
+  HttpOptions:
+    'Shared HTTP preparation, awaited successful response processing, error notification, background observation and execution settings.',
+  RequestOptions:
+    'Per-call headers, credentials policy, cancellation signal, timeout and result mode.',
   ResourceTree: 'Named resource declarations used to assemble clients and relations.',
   ActionTree: 'Named action declarations used to assemble action call entries.',
   decodeHttpBody: 'Decode response text according to its media type and empty-body rules.',

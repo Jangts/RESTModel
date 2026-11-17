@@ -28,4 +28,13 @@ const result = await api.users.list();
 
 The example needs a real backend returning an array; the response becomes a ResourceList. The Axios instance is optional: omitting it creates an isolated instance. Non-2xx responses remain HttpResponse values for core classification. Network errors retain cause. Envelopes, authentication preparation, cancellation budgets and resource derivation stay in the core. Automatic redirects are disabled to prevent forwarding credentials across origins by default.
 
-Existing instance defaults/interceptors are a caller-controlled trust boundary and can rewrite requests. Review actual network behavior. Axios types are not used as the core's public types. Browsers use Axios's Fetch adapter with manual redirects. Validation covers Node's HTTP adapter and the browser Fetch branch in isolated Chrome 157, not every browser or caller-defined interceptor.
+
+## Execution and instance reuse contract
+
+RESTModel owns the final URL. The extension sets baseURL to an empty string per request so an instance default of `/api` cannot prefix `/api/users` again. instance.defaults is unchanged. Absolute URLs and browser root-relative paths retain the core's assembled result; Node network calls still require absolute HTTP(S) URLs.
+
+The extension accepts every status through validateStatus, requests responseType text and disables transformResponse, then uses the core decoder for JSON/text. Axios success interceptors initially receive text. Non-2xx responses do not enter Axios failure interceptors; the core classifies them as http. Use createClient.onError for shared failure handling such as authentication cleanup. Network/timeout/cancellation failures still pass through Axios failure interceptors. ECONNABORTED/ETIMEDOUT become timeout and Axios cancellation becomes cancel.
+
+Without an explicit credentials policy, Node retains the instance adapter; the default HTTP adapter disables redirects with maxRedirects: 0. Browsers always use the Fetch adapter. Explicit omit/same-origin/include also selects Fetch in Node, maps exactly to Request.credentials and uses manual redirects. Explicit policies override instance withCredentials; an omitted policy retains instance defaults. This does not create a browser cookie store in Node.
+
+Instance defaults/interceptors remain caller-controlled. Request interceptors may rewrite settings and response interceptors may change the response shape. Reusing an instance does not make arbitrary existing interceptors compatible. The core exposes no Axios configuration types and the extension does not copy internal interceptor lists.

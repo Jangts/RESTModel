@@ -31,6 +31,8 @@ async function serve(request, response) {
     let text = '';
     for await (const chunk of request) text += chunk;
     response.setHeader('content-type', 'application/json');
+    if (url.pathname === '/api/session')
+      response.setHeader('set-cookie', 'restmodel-session=browser; Path=/; SameSite=Lax');
     const data =
       url.pathname === '/api/redirect-count'
         ? { followed }
@@ -38,7 +40,7 @@ async function serve(request, response) {
           ? { id: 0, ...JSON.parse(text) }
           : url.pathname === '/api/users'
             ? [{ id: 0, path: request.url }]
-            : { id: 0, path: request.url };
+            : { id: 0, path: request.url, cookie: request.headers.cookie ?? '' };
     response.end(JSON.stringify(data));
     return;
   }

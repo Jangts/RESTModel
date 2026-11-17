@@ -48,6 +48,8 @@ export interface ResourceDefinition<
   TModel = unknown,
   TConfig extends ResourceConfig = ResourceConfig,
 > {
+  /** 在已推导配置上绑定模型类型，不改变运行时声明。 */
+  readonly typed: <TNextModel>() => ResourceDefinition<TNextModel, TConfig>;
   /** 已确定的资源形态。 */
   readonly kind: ResourceKind;
   /** 已归一化的只读能力映射。 */
@@ -197,16 +199,28 @@ export function resource<TModel = unknown>(
     extras.members as ResourceTree | undefined,
     'resource.memberActions',
   );
-  const definition = Object.freeze({
+  const definition = {
     kind,
     operations: resolveOperations(kind, layers),
     ...(Object.keys(extras).length ? { config: Object.freeze(extras) } : {}),
-  });
+  };
+  Object.defineProperty(
+    definition,
+    'typed',
+    Object.assign(Object.create(null), { value: typedResource }),
+  );
+  Object.freeze(definition);
   definitions.add(definition);
   return definition as ResourceDefinition<TModel>;
 }
 
 const definitions = new WeakSet<object>();
+/** 只绑定编译期模型，保留同一个已冻结声明及其配置类型。 */
+function typedResource<TModel>(this: ResourceDefinition): ResourceDefinition<TModel> {
+  if (!definitions.has(this))
+    throw new ResourceConfigurationError('resource.typed: invalid definition');
+  return this as ResourceDefinition<TModel>;
+}
 /**
  * 确认声明由本运行时创建，拒绝伪造能力对象。
  * @param value 未知声明。

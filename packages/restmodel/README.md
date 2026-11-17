@@ -21,7 +21,7 @@ import { createClient, resource } from '@restmodel/restmodel';
 interface User { id: number; name: string }
 const api = createClient({
   baseURL: 'https://example.test/api',
-  resources: { users: resource<User>({ operations: ['list', 'get', 'post', 'patch'] }) },
+  resources: { users: resource({ operations: ['list', 'get', 'post', 'patch'] }).typed<User>() },
 });
 const users = await api.users.list(); // GET /api/users，ResourceList<User>
 const user = await api.users(0).get(); // GET /api/users/0
@@ -32,13 +32,15 @@ await api.users.post({ name: 'Ivan' });
 
 未声明 operations 时没有操作能力；预设显式继承。`'*'` 开启资源形态适用的标准操作，`{ '*': true, delete: false }` 显式关闭某项。singleton 仅允许 get/put/patch/delete，集合 list/post，成员 get/put/patch/delete；错误调用在请求前拒绝。
 
-query/page/cursor/with 返回隔离的新引用。with 接受 headers/signal/timeout/result；result 的 undefined 继承前层。executeHttp 的请求 signal 与单次设置 signal 组合，任一取消均生效；response 模式返回 `{ data, response }`。取消和超时停止等待并通知 Transport，不代表服务端副作用撤销。不会自动重试写操作。
+query/page/cursor/with 返回隔离的新引用。with 接受 headers/signal/timeout/result/credentials；result 的 undefined 继承前层。executeHttp 的请求 signal 与单次设置 signal 组合，任一取消均生效；response 模式返回 `{ data, response }`。取消和超时停止等待并通知 Transport，不代表服务端副作用撤销。不会自动重试写操作。
 
 scheme 使用 identity/envelope/success/map/pagination；false 关闭相应继承规则，分页配置整段替换。pagination 支持 page/offset/cursor；未知 total 为 undefined。默认裸 body、id 身份、裸数组列表；不猜后端字段。
 
-resource 支持 children/members 及 actions/memberActions，关系通过 `ref.$.child(name)` 访问；可推导关系保留模型类型，动态关系为 unknown。实体用 resourceOf/dataOf 取得无冲突引用及本地数据。JSON/键枚举保留真实数据，修改本地字段不自动发送请求。const 配置可推导能力与关系，位置类型区分集合/成员/单体；resource<TModel>(config) 保留模型和位置，精确配置可额外指定第二泛型。动态配置及分页模式仍在运行时校验。实体后续引用清除已完成请求的查询/分页/响应包装模式；Date 等非普通实例原样返回。
+resource 支持 children/members 及 actions/memberActions，关系通过 `ref.$.child(name)` 访问；可推导关系保留模型类型，动态关系为 unknown。实体用 resourceOf/dataOf 取得无冲突引用及本地数据。JSON/键枚举保留真实数据，修改本地字段不自动发送请求。const 配置可推导能力与关系，位置类型区分集合/成员/单体；`resource(config).typed<TModel>()` 同时保留模型、精确能力、关系和动作推导，返回同一冻结声明；`resource<TModel>(config)` 仍支持，但能力和关系采用动态类型。动态配置及分页模式仍在运行时校验。实体后续引用清除已完成请求的查询/分页/响应包装模式；Date 等非普通实例原样返回。
 
-ResourceConfigurationError 表示配置阶段错误；RequestError.kind 区分 unsupported-operation/identity/prepare/network/timeout/cancel/http/business/response-shape。默认诊断不输出原始上下文；显式访问 request/response/cause 时调用方负责脱敏。
+统一生命周期支持 prepareRequest(request, context)、等待成功前台处理的 processResponse(response, context)、失败通知 onError(error, context) 与后台 observeResponse(response)。请求级 state 用应用 Symbol 关联快照，请求结束清空，不发送给 Transport；前台处理失败分类为 process，错误通知不替换主错误。credentials 接受 omit/same-origin/include；缺省沿用执行器行为，omit 不删除显式 Authorization。可选 iteratePages 惰性遍历数据模式的 page/offset 资源，默认 size/start/maxPages 为 100/1/1000，未完成而达到上限会报错。完整时序、取消与终止规则见客户端参考。
+
+ResourceConfigurationError 表示配置阶段错误；RequestError.kind 区分 unsupported-operation/identity/prepare/process/network/timeout/cancel/http/business/response-shape。默认诊断不输出原始上下文；显式访问 request/response/cause 时调用方负责脱敏。
 
 完整使用与限制见[客户端参考](https://restmodel-docs.pages.jangts.cafe/zh/reference/client.html)和[操作声明](https://restmodel-docs.pages.jangts.cafe/zh/reference/operations.html)。tarball 内公开入口为本包根，不从 src 导入。
 

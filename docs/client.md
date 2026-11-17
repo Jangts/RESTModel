@@ -10,7 +10,7 @@ import { createClient, resource } from '@restmodel/restmodel';
 interface User { id: number; name: string }
 const api = createClient({
   baseURL: 'https://example.test/api/v1',
-  resources: { users: resource<User>({ operations: ['list', 'get', 'post', 'patch'] }) },
+  resources: { users: resource({ operations: ['list', 'get', 'post', 'patch'] }).typed<User>() },
 });
 const users = await api.users.list();
 const user = await api.users(0).get();
@@ -39,7 +39,17 @@ query/page/cursor/with 都返回新上下文。query 按键后写覆盖，数组
 
 headers 名称归一为小写；undefined 删除头。普通 JSON body 在执行开始时编码，FormData/Blob/ArrayBuffer 保持原实例，不深冻结，调用方应在请求完成前保持稳定。FormData boundary 交由平台处理。
 
-with 仅接受 headers/signal/timeout/result，不能任意修改 scheme。result 默认 data；with 中缺失或显式 undefined 表示继承已有模式，显式 data 才切回数据模式。宽 RequestOptions 变量无法静态确定模式时，返回类型为两种形态的联合。response 模式返回 `{ data, response }`，data 使用同一适配和建模流程。
+with 仅接受 headers/signal/timeout/result/credentials，不能任意修改 scheme。result 默认 data；with 中缺失或显式 undefined 表示继承已有模式，显式 data 才切回数据模式。宽 RequestOptions 变量无法静态确定模式时，返回类型为两种形态的联合。response 模式返回 `{ data, response }`，data 使用同一适配和建模流程。
+
+credentials 接受 omit/same-origin/include，可在客户端 defaults、引用 with 或 raw HTTP options 中设置；缺失和 undefined 继承。默认 Fetch 未设置时沿用平台的 same-origin。omit 排除浏览器 Cookie 等隐式凭据，不删除显式 Authorization 头。Node 不自动提供浏览器 Cookie 仓库；策略不绕过 CORS。自定义 Transport 应遵守 HttpRequest.credentials；Axios 的映射见扩展参考。
+
+```ts
+const external = createClient({
+  baseURL: 'https://example.test/weather', resources: {},
+  defaults: { credentials: 'omit', timeout: 5000 },
+});
+await external.$.request({ method: 'GET', path: 'forecast', query: { lat: 30, lon: 114 } });
+```
 
 ## 服务规则
 
@@ -58,6 +68,23 @@ const scheme = defineScheme({
 已知字段覆盖，undefined 继承；函数替换，分页整段替换，false 关闭。分页配置支持 page/offset/cursor：缺省参数分别 page/offset/cursor，大小字段分别 size/limit/limit；base 仅 page 适用。cursor 模式必须 `.cursor(token, size)`；page/offset 使用 `.page(number, size)`。total/next 未提供时保持未知，不猜 rows/content 等字段。
 
 当前操作配置可声明 `{ method: 'PUT', scheme: { envelope: false } }`，只适配该能力，不新增操作。同步适配函数误返回 Promise 时拒绝，避免把 Promise 当作业务值。
+
+## 逐页遍历
+
+```ts
+import { iteratePages } from '@restmodel/restmodel';
+const controller = new AbortController();
+for await (const page of iteratePages(api.users.with({ signal: controller.signal }), {
+  size: 100, maxPages: 200,
+})) {
+  console.log(page.items);
+  // break 不会预取下一页；controller.abort() 取消当前或下一次请求。
+}
+```
+
+此片段沿用上文 api。iteratePages 接收数据模式的 page/offset 资源引用，保留查询与请求设置；不支持 cursor 和 response 模式。它返回惰性异步迭代器，不收集、不缓存、不预取，普通 list 不受影响。size/start/maxPages 默认 100/1/1000，均须为正安全整数。每个收到的 ResourceList 都会产出，包括最后空页；204/无内容直接结束。
+
+空页终止；从第一页开始时，累计条目达到当前已知 total 也终止。未知 total 或 start 大于 1 时读到空页；短页不推定为末页，以兼容服务端页长上限。达到 maxPages 尚未结束会抛 ResourceConfigurationError，防止静默截断。请求失败原样传播。变化中的数据不提供一致性快照或去重保证。
 
 ## 标准操作的接口例外
 
@@ -104,9 +131,9 @@ import { resourceOf, dataOf } from '@restmodel/restmodel';
 const related = createClient({
   baseURL: 'https://example.test/api',
   resources: {
-    users: resource<User>({ operations: '*', members: {
-      profile: resource({ kind: 'singleton', operations: ['get'] }),
-    } }),
+    users: resource({ operations: '*', members: {
+      profile: resource({ kind: 'singleton', operations: ['get'] }).typed<User>(),
+    } }).typed<User>(),
   },
 });
 const user = await related.users(0).get();
@@ -118,9 +145,9 @@ if (user) {
 
 list 返回 ResourceList：items 为普通数组，结果对象可迭代，total 为 number 或 undefined，page 只包含已知请求及 next 信息。裸数组不以数组长度冒充 total；非数组列表或错误元信息抛 response-shape。
 
-对象返回本地数据快照代理，Object.keys、展开和 JSON 反映数据；元信息存 WeakMap。数据字段优先，已声明且不冲突的关联可在运行时以属性读取；TypeScript 使用 `$.child(name)` 或 `resourceOf(entity)` 作为稳定入口。可推导的 const 声明按能力白名单、预设补丁和集合/成员/单体位置裁剪终端方法，保留具名关系及动作输入输出；动态配置仍执行运行时校验。只写 `resource<TModel>(config)` 时因 TypeScript 无法同时推导剩余类型参数，保留位置与模型类型，但配置能力和关系仍采用动态类型；需要同时保留精确配置时可用 `resource<TModel, typeof config>(config)`。分页模式仍在运行时校验，动态关系模型为 unknown，不凭泛型信任后端数据。
+对象返回本地数据快照代理，Object.keys、展开和 JSON 反映数据；元信息存 WeakMap。数据字段优先，已声明且不冲突的关联可在运行时以属性读取；TypeScript 使用 `$.child(name)` 或 `resourceOf(entity)` 作为稳定入口。可推导的 const 声明按能力白名单、预设补丁和集合/成员/单体位置裁剪终端方法，保留具名关系及动作输入输出；动态配置仍执行运行时校验。使用 `resource(config).typed<TModel>()` 同时保留模型与精确配置；typed 不复制声明、不发请求，返回同一个冻结定义。`resource<TModel>(config)` 仍支持，但因 TypeScript 部分泛型推导限制，能力和关系采用动态类型；也可显式提供第二泛型。分页模式仍在运行时校验，动态关系模型为 unknown，不凭泛型信任后端数据。
 
-get 的地址身份优先；集合返回记录与 post 结果按 identity 推导身份。缺失身份仍可读数据，需要身份的后续操作抛 identity，不构造 undefined 路径。实体后续引用清除原请求的 query/page/cursor，并恢复 data 返回模式，保留 headers/signal/timeout 和资源规则；调用者可重新追加查询。直接在显式引用上绑定身份或访问子资源，仍继承显式链状态，子资源也继承 result 模式。本地字段修改不会自动请求，不全局合并实体。数组和 Date、Map、Blob 等非普通对象原样返回，不附加实体元信息；resourceOf 对这些实例报 response-shape。标量/null 不伪装对象；204/205/无正文返回 undefined，不补发 GET。
+get 的地址身份优先；集合返回记录与 post 结果按 identity 推导身份。缺失身份仍可读数据，需要身份的后续操作抛 identity，不构造 undefined 路径。实体后续引用清除原请求的 query/page/cursor，并恢复 data 返回模式，保留 headers/signal/timeout/credentials 和资源规则；调用者可重新追加查询。直接在显式引用上绑定身份或访问子资源，仍继承显式链状态，子资源也继承 result 模式。本地字段修改不会自动请求，不全局合并实体。数组和 Date、Map、Blob 等非普通对象原样返回，不附加实体元信息；resourceOf 对这些实例报 response-shape。标量/null 不伪装对象；204/205/无正文返回 undefined，不补发 GET。
 
 ## 特殊动作与 raw HTTP
 
@@ -173,10 +200,56 @@ path 相对于当前引用路径；`/` 开头从服务 baseURL 的路径根计�
 
 Transport 只接收编码完成的 HttpRequest，返回包含 status/headers/body 的 HttpResponse。非 2xx 也返回正常响应，core 统一抛 http 错误；网络、取消、超时分别分类。自定义执行器必须监听 signal、释放自己的资源，并遵守不自动重定向的契约。Fetch/Axios 执行器不跟随重定向；其他宿主 SSRF 规则仍由调用方负责。
 
-prepareRequest 在最终快照前执行一次，可异步注入鉴权；不得修改 URL/method 或替换有效取消信号。observeResponse 是独立后台观测，成功结果不等待它完成，失败被隔离，不重发请求。观察器应自行拥有外部资源的生命周期。
+标准资源操作、action、raw HTTP 和 executeHttp 共用以下顺序：准备请求 → Transport → HTTP 状态检查 → 前台响应处理 → 业务适配与建模（raw 跳过）→ 成功后台观测。错误进入统一 onError，随后仍拒绝原请求，不自动恢复或重试。
+
+| 配置 | 参数与等待语义 |
+| --- | --- |
+| prepareRequest | `(request, context)`，每次请求一次，可异步返回请求；最终快照前注入头，不得修改 URL/method；有效取消信号由 core 控制 |
+| processResponse | `(response, context)`，仅 2xx，等待完成后才交付数据；用于文件地址登记等前台处理；返回值忽略，数据转换使用 scheme.map |
+| onError | `(error, context)`，请求、HTTP、前台处理及业务适配失败时一次通知，通常等待；处理器失败隔离，保留主错误，不递归通知 |
+| observeResponse | `(response)`，全部适配成功后后台运行；不等待，错误隔离，不重复请求，适合遥测 |
+
+旧的一参数 prepareRequest 仍可使用。processResponse 抛错分类为 process 并保留 cause；onError 不能将失败变为成功。无效声明、缺少路径参数、编码或不支持操作等请求前错误不进入生命周期，因为尚未创建实际执行上下文。
+
+RequestContext 为每次执行创建，三个前台钩子共享同一实例。request 指向当前准备值或最终快照，signal 是有效取消信号，state 是 `Map<symbol, unknown>`：使用应用自己的 Symbol 存放请求时刻的用户/Token 等快照，不附加到请求对象。context 不发送给 Transport，默认 JSON/Node 检查不展示其字段，state 在请求结束时清空；应用自行持有的引用仍由应用负责，避免显式输出凭据。
+
+以下片段由应用提供会话读取、清理与文件登记函数；库不决定登录态策略：
+
+```ts
+import { createClient, resource, RequestError } from '@restmodel/restmodel';
+type Session = { userId: string | null; token: string | null };
+function createService(
+  readSession: () => Session,
+  clearSession: () => void,
+  acceptFiles: (body: unknown, signal: AbortSignal) => Promise<void>,
+) {
+  const sessionKey = Symbol('request-session');
+  return createClient({
+    baseURL: '/api', resources: { users: resource({ operations: ['list', 'get'] }) },
+    prepareRequest(request, context) {
+      const snapshot = { ...readSession() };
+      context.state.set(sessionKey, snapshot);
+      return { ...request, headers: {
+        ...request.headers,
+        ...(snapshot.token ? { authorization: `Bearer ${snapshot.token}` } : {}),
+      } };
+    },
+    processResponse: (response, context) => acceptFiles(response.body, context.signal),
+    onError(error, context) {
+      if (!(error instanceof RequestError) || error.response?.status !== 401) return;
+      const snapshot = context.state.get(sessionKey);
+      const current = readSession();
+      if (snapshot && typeof snapshot === 'object' && 'userId' in snapshot && 'token' in snapshot
+        && snapshot.userId === current.userId && snapshot.token === current.token) clearSession();
+    },
+  });
+}
+```
+
+认证路由排除、Token 更新、authRevision、文案与跳转属于应用。前台异步处理应监听 context.signal；超时/取消停止等待后，库不会继续处理迟到响应，也不再启动后续成功钩子，但不能强制中断已经运行的应用回调。取消时 onError 仍通知一次，异步结果不再阻塞取消；错误处理期间发生取消则保留原主错误并结束等待。
 
 executeHttp 同时接收 HttpRequest.signal 和 RequestOptions.signal，任一取消都生效；同一信号去重，结束时释放所有外部监听。timeout/取消会停止等待并 abort Transport 信号，core 清理自己的 timer/listener；不能保证不合作的第三方执行器终止，更不代表服务端副作用撤销。不自动重试写操作。
 
-配置错误使用 ResourceConfigurationError。执行错误 RequestError.kind 为 unsupported-operation/identity/prepare/network/timeout/cancel/http/business/response-shape，cause 和原始 request/response 在存在时可显式访问。JSON 和 Node 检查器默认不输出原始敏感上下文；不要手动打印 request/response/cause。
+配置错误使用 ResourceConfigurationError。执行错误 RequestError.kind 为 unsupported-operation/identity/prepare/process/network/timeout/cancel/http/business/response-shape，cause 和原始 request/response 在存在时可显式访问。JSON 和 Node 检查器默认不输出原始敏感上下文；不要手动打印 request/response/cause。
 
 扩展入口为 `@restmodel/axios` 的 axiosTransport、`@restmodel/mock` 的 withMock、`@restmodel/pinia` 的 defineResourceStore。具体扩展只依赖 core 公共入口，不进入核心运行依赖。缓存、重试、刷新鉴权队列与跨数据源协议不属于当前能力。

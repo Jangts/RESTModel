@@ -5,6 +5,9 @@ import {
   action,
   type ResourceList,
   type OperationDeclaration,
+  iteratePages,
+  type RequestContext,
+  type CredentialsMode,
 } from '@restmodel/restmodel';
 import { axiosTransport } from '@restmodel/axios';
 import { withMock } from '@restmodel/mock';
@@ -90,3 +93,39 @@ const actionPaths = createClient({
 actionPaths.users.lookup({ tenantId: 0, id: 'a/b', detail: true });
 // @ts-expect-error placeholder inference survives published declaration boundaries
 actionPaths.users.lookup({ id: 1 });
+
+const credentials: CredentialsMode = 'omit';
+const precise = createClient({
+  baseURL: '/api',
+  defaults: { credentials },
+  prepareRequest(request, context: RequestContext) {
+    context.state.set(Symbol(), 'private');
+    return request;
+  },
+  resources: {
+    users: resource({
+      operations: ['list', 'get', 'patch'],
+      members: { profile: resource({ kind: 'singleton', operations: ['get'] }).typed<User>() },
+      actions: { lookup: action({ method: 'GET', path: ':tenantId/:id' }) },
+    }).typed<User>(),
+  },
+});
+const preciseUser: Promise<User | undefined> = precise.users(0).get();
+const preciseProfile: Promise<User | undefined> = precise.users(0).$.child('profile').get();
+async function consumePages() {
+  for await (const page of iteratePages(precise.users, { size: 10 })) {
+    const users: User[] = page.items;
+    void users;
+  }
+}
+void preciseUser;
+void preciseProfile;
+void consumePages;
+// @ts-expect-error model binding preserves capability restrictions
+precise.users(0).delete();
+// @ts-expect-error model binding preserves action path inference
+precise.users.lookup({ id: 1 });
+// @ts-expect-error model inputs retain their field types
+precise.users(0).patch({ name: 123 });
+// @ts-expect-error pagination helper expects data-mode results
+iteratePages(precise.users.with({ result: 'response' }));

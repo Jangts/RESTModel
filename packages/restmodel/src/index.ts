@@ -45,6 +45,11 @@ export type {
   Transport,
   HttpOptions,
   RequestOptions,
+  RequestContext,
+  CredentialsMode,
 } from './http/types.js';
 export type { ResourceTree, ActionTree } from './resource.js';
 export { decodeHttpBody } from './http/decode.js';
+
+export { iteratePages } from './pagination.js';
+export type { PageSource, PageIterationOptions } from './pagination.js';

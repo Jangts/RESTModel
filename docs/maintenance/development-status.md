@@ -9,12 +9,16 @@
 - 标准操作数组可混合操作名与 `{ operation, method?, scheme?, path?, queryKey? }`。单身份地址映射保留标准操作位置、scheme 与实体语义；多参数接口例外走 action。默认标准路径原有复合身份支持不变。
 - action 仅按声明名直接调用，动作名与后端 path 独立。path 支持多个具名完整片段，从输入对象提取并逐片段编码；已消费字段不再进入 query/body。字面量路径推导必填字段，缺参、非法值和访问器在请求前拒绝。成员动作与集合动作按位置区分，名称冲突在配置时拒绝。
 - scheme 使用 identity/envelope/success/map/pagination。资源引用、分页、raw HTTP、列表与实体关联的当前合同以[客户端参考](../client.md)及[操作声明](../operations.md)为准；设计草案不作为可执行接口依据。
-- 模型泛型不执行响应校验。精确 const 配置保留能力、位置、关系和动作输入输出；动态配置、宽泛型及分页模式仍需运行时校验。预设类型展开深度上限为 12 层。
+- 请求生命周期统一 prepareRequest、processResponse、onError 与后台 observeResponse；每次请求的 RequestContext.state 使用应用 Symbol 关联快照，结束后清空，不传给 Transport。成功前台处理被等待，失败分类为 process；统一错误通知保留主错误。
+- defaults/with/raw options 支持 credentials 三态策略；Axios 显式策略使用 Fetch，并逐请求清空实例 baseURL，避免重复地址前缀。可选 iteratePages 惰性遍历数据模式 page/offset 引用，有最大页数边界，不改变 list 单页语义。
+- 模型泛型不执行响应校验。`resource(config).typed<Model>()` 保留模型与精确配置类型；精确 const 配置保留能力、位置、关系和动作输入输出；动态配置、宽泛型及分页模式仍需运行时校验。预设类型展开深度上限为 12 层。
 - 双语文档沿用 /zh/、/en/ 对等路径及语言偏好入口，托管在自建 Pages。站点维护与部署证据见[维护说明](../../apps/docs/README.md)及[部署记录](../../apps/docs/docs/deployment.md)。
 
 ## 最近一次代码验证
 
-action 路径参数实现后的完整 pnpm check 已通过：73 项行为测试、源码和独立消费者类型检查、四包真实 tarball 消费，以及 Chrome 16 项 HTTP 检查。该结果是既有代码验证记录，本次文档整理不重复运行全套代码测试，也不代表已执行远端 CI 或 npm 发布。
+2026-11-17 库侧接入优化的最终 pnpm check 通过：88 项行为测试（79 主包、4 Axios、2 Mock、3 Pinia）、源码与独立消费者类型检查、四包真实 tarball ESM/运行消费、格式检查及 Chrome 157 的 23 项 HTTP 检查。覆盖同一用户换 Token、更换用户、401 迟到响应、前台处理与异常、取消、分页上限/非首页/204，以及 Axios URL、超时和凭据三态。
+
+双语 docs:check/build 通过，30 段文档代码在真实 tarball 消费者中按明确章节上下文独立编译通过。使用既有自建 Pages 部署入口同步公共参考，部署证据见部署记录。临时完整日志为 /tmp/restmodel-iteration-check.log，独立消费者与浏览器产物由检查命令打印临时目录。未执行 Cafe 接入、Cafe 构建/测试、远端 CI 或 npm 发布；未查询登录或组织权限。
 
 ## 工程与验证
 
@@ -32,4 +36,4 @@ pnpm check 统一执行全部检查；pnpm check:packages 和 pnpm check:browser
 
 ## 后续边界
 
-后续按真实接入需要完善动态泛型体验、更多浏览器/平台验证和公开发布准备。缓存、自动重试、刷新鉴权队列不属于当前实现。没有独立 HTTP 消费证据之前不拆新包；已有 HTTP 公开函数可以独立于资源调用使用，但拆包仍需单独评估兼容成本。
+后续按真实接入需要验证 Cafe 代表性链路、更多浏览器/平台和公开发布准备。缓存、自动重试、刷新鉴权队列不属于当前实现。没有独立 HTTP 消费证据之前不拆新包；已有 HTTP 公开函数可以独立于资源调用使用，但拆包仍需单独评估兼容成本。

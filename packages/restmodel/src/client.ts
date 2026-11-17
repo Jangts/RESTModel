@@ -7,7 +7,8 @@ import type { ActionTree, ResourceDefinition, ResourceTree } from './resource.js
 import { isResourceDefinition } from './resource.js';
 import { standardOperations, isHttpMethod } from './operations.js';
 import type { HttpMethod, StandardOperation } from './operations.js';
-import { executeHttp } from './http/execute.js';
+import { assertCredentials } from './http/credentials.js';
+import { executeRequest } from './http/execute.js';
 import { operationRoute } from './operation-route.js';
 import { reservedResourceNames, validateActionNames } from './reference-names.js';
 import { fetchTransport } from './http/fetch.js';
@@ -75,12 +76,13 @@ function settingsMerge(previous: RequestOptions, next: RequestOptions): RequestO
   previous = Object.assign(Object.create(null) as RequestOptions, previous);
   next = Object.assign(Object.create(null) as RequestOptions, Object.fromEntries(fields));
   for (const key of fields.keys())
-    if (!['headers', 'signal', 'timeout', 'result'].includes(key))
+    if (!['headers', 'signal', 'timeout', 'result', 'credentials'].includes(key))
       throw new ResourceConfigurationError(`request options.${key}: unknown field`);
   if (next.result !== undefined && next.result !== 'data' && next.result !== 'response')
     throw new ResourceConfigurationError('request options.result: invalid mode');
   if (next.timeout !== undefined && (!Number.isFinite(next.timeout) || next.timeout <= 0))
     throw new ResourceConfigurationError('request options.timeout: invalid budget');
+  assertCredentials(next.credentials);
   const headers: Record<string, string | undefined> = { ...previous.headers };
   if (next.headers)
     for (const [key, value] of configurationFields(next.headers, 'headers')) {
@@ -91,6 +93,7 @@ function settingsMerge(previous: RequestOptions, next: RequestOptions): RequestO
   return Object.freeze(
     Object.assign(Object.create(null) as RequestOptions, previous, next, {
       result: next.result ?? previous.result,
+      credentials: next.credentials ?? previous.credentials,
       headers: Object.freeze(headers),
     }),
   );
@@ -145,6 +148,8 @@ export function createClient<
         'actions',
         'prepareRequest',
         'observeResponse',
+        'processResponse',
+        'onError',
       ].includes(key)
     )
       throw new ResourceConfigurationError(`client.${key}: unknown field`);
@@ -152,10 +157,15 @@ export function createClient<
     throw new ResourceConfigurationError('client.baseURL: expected a string');
   if (config.transport !== undefined && typeof config.transport !== 'function')
     throw new ResourceConfigurationError('client.transport: expected an HTTP executor function');
+  for (const key of ['prepareRequest', 'processResponse', 'onError', 'observeResponse'] as const)
+    if (config[key] !== undefined && typeof config[key] !== 'function')
+      throw new ResourceConfigurationError(`client.${key}: expected a function`);
   const http = Object.freeze({
     transport: config.transport ?? fetchTransport(),
     prepareRequest: config.prepareRequest,
     observeResponse: config.observeResponse,
+    processResponse: config.processResponse,
+    onError: config.onError,
   });
   const base = config.baseURL === '/' ? '' : config.baseURL.replace(/\/+$/u, '');
   if (
@@ -189,16 +199,22 @@ export function createClient<
   }
   const url = (segments: readonly string[], query: URLSearchParams) =>
     `${base}/${segments.join('/')}${query.size ? `?${query}` : ''}`;
-  const send = (
+  const send = <TResult>(
     method: HttpMethod,
     segments: readonly string[],
     query: URLSearchParams,
     body: unknown,
     settings: RequestOptions,
+    consume: (response: HttpResponse) => TResult,
   ) => {
     if (!isHttpMethod(method))
       throw new ResourceConfigurationError('request.method: invalid HTTP method');
-    return executeHttp(http, buildRequest(method, url(segments, query), body, settings), settings);
+    return executeRequest(
+      http,
+      buildRequest(method, url(segments, query), body, settings),
+      settings,
+      consume,
+    );
   };
   function actions(
     tree: ActionTree | undefined,
@@ -231,18 +247,20 @@ export function createClient<
                 queryInput && bound.input !== undefined
                   ? mergeQuery(context?.query ?? new URLSearchParams(), bound.input as Query)
                   : (context?.query ?? new URLSearchParams());
-              const response = await send(
+              return send(
                 definition.method,
                 segments,
                 query,
                 queryInput ? undefined : bound.input,
                 settings,
+                (response) => {
+                  const data = unwrapResponse(
+                    response,
+                    mergeSchemes(context?.scheme ?? scheme, definition.scheme),
+                  );
+                  return settings.result === 'response' ? { data, response } : data;
+                },
               );
-              const data = unwrapResponse(
-                response,
-                mergeSchemes(context?.scheme ?? scheme, definition.scheme),
-              );
-              return settings.result === 'response' ? { data, response } : data;
             },
           ];
         }),
@@ -326,20 +344,27 @@ export function createClient<
         context.identity,
         query,
       );
-      const pending = send(operation.method, route.segments, route.query, input, context.settings);
-      const response = await pending;
-      const value = unwrapResponse(response, operationScheme);
-      const data =
-        name === 'delete'
-          ? value
-          : modelResponse(
-              value,
-              name === 'list',
-              operationScheme,
-              (data) => entityReference(data, operationScheme),
-              context.page,
-            );
-      return context.settings.result === 'response' ? { data, response } : data;
+      return send(
+        operation.method,
+        route.segments,
+        route.query,
+        input,
+        context.settings,
+        (response) => {
+          const value = unwrapResponse(response, operationScheme);
+          const data =
+            name === 'delete'
+              ? value
+              : modelResponse(
+                  value,
+                  name === 'list',
+                  operationScheme,
+                  (data) => entityReference(data, operationScheme),
+                  context.page,
+                );
+          return context.settings.result === 'response' ? { data, response } : data;
+        },
+      );
     };
     // 目录包含完整标准全集；这里只为动态装配标记已安装的方法名。
     const operations = Object.fromEntries(
@@ -434,6 +459,7 @@ export function createClient<
         mergeQuery(new URLSearchParams(), input.query ?? {}),
         input.body,
         settingsMerge(defaults, input.options ?? {}),
+        (response) => response,
       ),
   });
   // 动态装配仅使用已验证资源键；公共映射类型由输入资源树提供。

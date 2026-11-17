@@ -20,7 +20,7 @@ interface User { id: number; name: string }
 const api = createClient({
   baseURL: 'https://example.test/api',
   resources: {
-    users: resource<User>({ operations: ['list', 'get', 'post', 'patch'] }),
+    users: resource({ operations: ['list', 'get', 'post', 'patch'] }).typed<User>(),
   },
 });
 

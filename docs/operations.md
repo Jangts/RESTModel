@@ -55,6 +55,8 @@ const profile = resource({ kind: 'singleton', extends: singletonPreset })
 
 `resource<T>(config?)` 返回 `ResourceDefinition<T>`，包含 kind 与只读 operations。每项归一化后必含 method、target，并保留已配置的 scheme、path、queryKey；target 为 collection/member/singleton。模型泛型只携带类型，不产生运行时模型类。
 
+使用 `resource(config).typed<TModel>()` 绑定模型类型，同时保留字面量操作、具名关系与动作参数推导。typed 返回同一冻结定义，不复制配置，不发送请求。
+
 `defineResourcePreset(config)` 返回可复用且不可变的能力预设，支持单一 extends 逐级继承，并检查循环引用。预设保留声明层，在具体资源形态确定后才展开星号。
 
 `standardOperations` 为唯一标准操作目录，驱动默认方法、适用位置和星号展开。公开错误类为 ResourceConfigurationError；其余公共类型从包入口导出。

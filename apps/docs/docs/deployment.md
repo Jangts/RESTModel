@@ -33,3 +33,11 @@ pnpm check 通过：73 项行为测试、类型与格式、四包真实 tarball 
 本次整理仓库与主包 README、中英文快速上手／项目边界／操作声明／客户端参考、文档索引、API 描述和当前维护状态。统一单身份标准操作覆盖与多参数 action 的选用边界、直接动作调用、路径字段提取及剩余 query/body 规则。修正归一化结果字段说明、缺少导入或装配的完整示例，以及主包 README 的线上参考链接。历史设计草案保留设计对照身份，当前状态不再堆叠不同阶段的测试数量。
 
 14 个独立文档示例已通过 TypeScript 检查；双语页面、导出覆盖、完整构建、格式与差异检查通过。未重复运行全套代码行为测试，不执行 npm 发布。通过既有部署入口更新本站静态成品，公网逐文件 SHA-256 校验回执为 `/tmp/restmodel-doc-alignment-verification.json`。
+
+## Cafe 接入所需的通用库优化（2026-11-17）
+
+中英文客户端、操作声明、Axios 扩展、入门与 API 索引已同步 RequestContext、processResponse、onError、credentials、精确模型绑定 typed 与 iteratePages。统一生命周期明确前台处理被等待、后台观测被隔离、主错误保留和取消时序；Axios 明确最终 URL 归属、文本响应及拦截器合同。
+
+最终 pnpm check 通过：88 项行为测试（79 主包、4 Axios、2 Mock、3 Pinia）、类型与格式、四包真实 tarball 消费、Chrome 23 项 HTTP 检查。30 段文档代码在真实 tarball 消费者中按明确章节上下文编译通过，双语文档检查与完整构建通过。首次构建发现英文说明中的泛型被当作 HTML 标签，修正来源的代码标记后重新构建部署；首次失败没有上传或替换线上站点。
+
+沿用 pnpm docs:deploy 仅更新本站静态目录，远端校验 110 个文件；公网 HTTPS 逐文件 SHA-256 与本地产物全部一致，缺失页面返回真实 404。回执为 /tmp/restmodel-cafe-library-docs-verification.json。未修改 Cafe、未查询登录或组织权限、未发布 npm、未改共享代理/DNS/证书。本次同源 Cookie 与 Node Request.credentials 验证不代表跨源 CORS 或真实 Cafe 集成已验证。

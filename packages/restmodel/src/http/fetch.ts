@@ -13,6 +13,7 @@ export function fetchTransport(): Transport {
       headers: request.headers,
       ...(request.body === undefined ? {} : { body: request.body }),
       ...(request.signal ? { signal: request.signal } : {}),
+      ...(request.credentials === undefined ? {} : { credentials: request.credentials }),
       redirect: 'manual',
     });
     const text = response.status === 204 || response.status === 205 ? '' : await response.text();

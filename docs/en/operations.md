@@ -51,6 +51,8 @@ The articles example enables only list and post and leaves readonly unchanged. T
 
 `resource<T>(config?)` returns `ResourceDefinition<T>` with kind and readonly operations. Each normalized operation contains method and target, retaining configured scheme, path and queryKey fields. target is collection/member/singleton. Model generics carry types without creating runtime model classes.
 
+Use `resource(config).typed<TModel>()` to bind a model while retaining literal capabilities, named relations and action parameter inference. typed returns the same frozen definition without copying configuration or sending requests.
+
 `defineResourcePreset(config)` returns a reusable immutable preset, supports a single extends chain and checks cycles. Presets retain declaration layers and expand wildcards only after the concrete resource kind is known.
 
 `standardOperations` is the single catalog driving default methods, supported positions and wildcard expansion. ResourceConfigurationError is the public error class. Other public types are exported from the package entry.
