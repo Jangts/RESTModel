@@ -161,3 +161,50 @@ test('explicit credentials reach the Axios Fetch Request unchanged in Node', asy
     await api.users(0).with({ credentials }).get();
   assert.deepEqual(seen, ['omit', 'same-origin', 'include']);
 });
+
+test('Axios supports explicit JSON and status-only streaming with cache and keepalive', async (t) => {
+  const server = createServer((request, response) => {
+    if (request.url === '/api/never') {
+      response.writeHead(200, { 'content-type': 'text/plain' });
+      response.write('unfinished');
+      return;
+    }
+    if (request.url === '/api/denied') {
+      response.writeHead(403, { 'content-type': 'application/json' });
+      response.end('{"reason":"denied"}');
+      return;
+    }
+    response.writeHead(200, { 'content-type': 'text/plain' });
+    response.end('{"id":1}');
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(
+    () =>
+      new Promise((resolve) => {
+        server.closeAllConnections();
+        server.close(resolve);
+      }),
+  );
+  const api = createClient({
+    baseURL: `http://127.0.0.1:${server.address().port}/api`,
+    transport: axiosTransport(axios.create({ proxy: false })),
+    resources: {},
+  });
+  const json = await api.$.request({
+    method: 'GET',
+    path: 'plain',
+    options: { responseType: 'json', cache: 'no-store', keepalive: false },
+  });
+  assert.deepEqual(json.body, { id: 1 });
+  assert.equal(json.headers['content-type'], 'text/plain');
+  const status = await api.$.request({
+    method: 'DELETE',
+    path: 'never',
+    options: { responseType: 'none', timeout: 1000 },
+  });
+  assert.equal(status.body, undefined);
+  await assert.rejects(
+    api.$.request({ method: 'DELETE', path: 'denied', options: { responseType: 'none' } }),
+    (e) => e.kind === 'http' && e.response.body.reason === 'denied',
+  );
+});

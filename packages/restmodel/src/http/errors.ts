@@ -1,4 +1,4 @@
-/** 执行阶段错误；诊断输出仅包含分类，不保存敏感请求正文。 */
+/** 执行阶段错误；默认诊断仅输出分类，不枚举原始请求上下文。 */
 import type { HttpRequest, HttpResponse } from './types.js';
 /** 稳定执行错误分类。 */
 export type RequestErrorKind =

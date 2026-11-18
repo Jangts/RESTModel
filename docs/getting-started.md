@@ -4,7 +4,15 @@ RESTModel 是面向 HTTP RESTful 接口的模型化客户端。声明资源后�
 
 ## 环境与安装
 
-使用 Node.js 22+、pnpm 8.10.5。浏览器需支持 Fetch、AbortController 和 FormData。主包与三个扩展均面向公共发布，尚未公开发布。当前可在本仓库根目录执行：
+运行时要求 Node.js 22+，或支持 Fetch、AbortController 和 FormData 的现代浏览器。项目开发使用 pnpm 8.10.5。
+
+安装 0.1.0（registry 发布状态见仓库发布记录）：
+
+```sh
+pnpm add @restmodel/restmodel@0.1.0
+```
+
+源码开发或发布前使用本地包时，在仓库根目录执行：
 
 ```sh
 pnpm install

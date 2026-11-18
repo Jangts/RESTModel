@@ -1,13 +1,13 @@
 # @restmodel/pinia
 
-Pinia state management for public resource calls. Requires @restmodel/restmodel ^0.0.0, pinia ^4.1.0 and vue ^3.5.45. This extension targets public distribution but has not been published yet. It uses the [MIT License](../../../extensions/pinia/LICENSE).
+Pinia state management for public resource calls. Requires @restmodel/restmodel ^0.1.0, pinia ^4.1.0 and vue ^3.5.45. Version 0.1.0 uses the [MIT License](../../../extensions/pinia/LICENSE).
 
 ## Installation
 
-After publication, install from npm (the packages are not published yet):
+Install 0.1.0 from npm once the registry release is available:
 
 ```sh
-pnpm add @restmodel/restmodel @restmodel/pinia pinia vue
+pnpm add @restmodel/restmodel@0.1.0 @restmodel/pinia@0.1.0 pinia vue
 ```
 
 Before publication, run `pnpm install` and `pnpm build` at the repository root, then run `pnpm pack --pack-destination /tmp/restmodel-pack` in `extensions/pinia`. In the consuming project, install the actual generated tarball with `pnpm add /tmp/restmodel-pack/<filename>.tgz`, together with the main package tarball and the third-party peers listed above. Packing cleans and rebuilds the current package's dist directory.

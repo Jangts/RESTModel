@@ -1,4 +1,5 @@
 /** URL、query 和 body 的公共编码阶段，资源与 raw/action 共用。 */
+import { transportSettings } from './http/options.js';
 import { normalizeHeaders } from './http/headers.js';
 import { ResourceConfigurationError, configurationFields } from './configuration.js';
 import type { HttpRequest, RequestOptions } from './http/types.js';
@@ -37,7 +38,11 @@ export function pathSegments(path: string): string[] {
       }
       if (decoded === '.' || decoded === '..' || /[/\\]/u.test(decoded))
         throw new ResourceConfigurationError('path: invalid segment');
-      return encodeURIComponent(decoded);
+      try {
+        return encodeURIComponent(decoded);
+      } catch {
+        throw new ResourceConfigurationError('path: invalid Unicode');
+      }
     });
 }
 /**
@@ -149,6 +154,6 @@ export function buildRequest(
     headers: Object.freeze({ ...headers }),
     body: encoded,
     signal: settings.signal,
-    ...(settings.credentials === undefined ? {} : { credentials: settings.credentials }),
+    ...transportSettings(settings),
   });
 }

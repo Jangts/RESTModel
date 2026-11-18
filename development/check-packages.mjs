@@ -1,11 +1,16 @@
 /** 独立 tarball 消费检查：使用工作区实际包体与已安装 peer，不借源码解析。 */
 import { mkdtemp, mkdir, readFile, readdir, copyFile, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runCommand } from './process.mjs';
 const root = fileURLToPath(new URL('../', import.meta.url));
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== '--pack-destination' || !args[1]))
+  throw new Error('Usage: node development/check-packages.mjs [--pack-destination DIRECTORY]');
+const destination = args[1] ? resolve(root, args[1]) : undefined;
 const output = await mkdtemp(join(tmpdir(), 'restmodel-packages-'));
 const tarballs = join(output, 'tarballs');
 const consumer = join(output, 'consumer');
@@ -35,6 +40,8 @@ async function verifyTarball(tarball, source) {
   const packed = JSON.parse(await read('package.json'));
   assert.equal(packed.name, source.name);
   assert.equal(packed.version, source.version);
+  assert.match(packed.version, /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u);
+  assert.notEqual(packed.version, '0.0.0', 'Set a release version before packing');
   assert.equal(packed.private, undefined);
   assert.equal(packed.license, 'MIT');
   assert.equal(packed.publishConfig.access, 'public');
@@ -133,3 +140,18 @@ await runCommand(
 );
 console.log(smoke.stdout.trim());
 console.log(`Package/type checks passed for ${packages.length} tarballs. Artifacts: ${output}`);
+// 仅在全部真实消费检查通过后保留交付包；不重新打包，摘要对应已验证的相同字节。
+if (destination) {
+  await mkdir(destination, { recursive: true });
+  const checksums = [];
+  for (const filename of (await readdir(tarballs)).sort()) {
+    const source = join(tarballs, filename);
+    const digest = createHash('sha256')
+      .update(await readFile(source))
+      .digest('hex');
+    await copyFile(source, join(destination, filename));
+    checksums.push(`${digest}  ${filename}`);
+  }
+  await writeFile(join(destination, 'SHA256SUMS'), `${checksums.join('\n')}\n`);
+  console.log(`Verified release tarballs and SHA256SUMS: ${destination}`);
+}

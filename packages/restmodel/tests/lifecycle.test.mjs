@@ -3,6 +3,53 @@ import assert from 'node:assert/strict';
 import { inspect } from 'node:util';
 import { createClient, resource, action, executeHttp, RequestError } from '../dist/index.js';
 const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test('caller cancellation and timeout preserve the reason in errors and the transport signal', async () => {
+  const cause = new Error('caller stopped');
+  const caller = new AbortController();
+  let signal;
+  const started = deferred();
+  const pending = executeHttp(
+    {
+      transport: async (request) => {
+        signal = request.signal;
+        started.resolve();
+        return new Promise(() => {});
+      },
+    },
+    { method: 'GET', url: '/api/users', headers: {} },
+    { signal: caller.signal },
+  );
+  await started.promise;
+  caller.abort(cause);
+  await assert.rejects(pending, (error) => error.kind === 'cancel' && error.cause === cause);
+  assert.equal(signal.reason, cause);
+
+  await assert.rejects(
+    executeHttp(
+      {
+        transport: async (request) => {
+          signal = request.signal;
+          return new Promise(() => {});
+        },
+      },
+      { method: 'GET', url: '/api/users', headers: {} },
+      { timeout: 5 },
+    ),
+    (error) =>
+      error.kind === 'timeout' &&
+      error.cause.name === 'TimeoutError' &&
+      error.cause === signal.reason,
+  );
+  await assert.rejects(
+    executeHttp(
+      { transport: async () => assert.fail('pre-aborted request must not execute') },
+      { method: 'GET', url: '/api/users', headers: {} },
+      { signal: caller.signal },
+    ),
+    (error) => error.kind === 'cancel' && error.cause === cause,
+  );
+});
 function deferred() {
   let resolve;
   const promise = new Promise((done) => {

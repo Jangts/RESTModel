@@ -5,6 +5,7 @@ import type { ResourceList } from './results.js';
 import type { ActionFunctions } from './action.js';
 import type {
   ResourceConfig,
+  ResourceInputs,
   ResourceDefinition,
   ResourcePresetDefinition,
   ResourceTree,
@@ -21,7 +22,11 @@ export type ReferencePosition = 'collection' | 'member' | 'singleton' | 'dynamic
 /** 只携带声明类型，不成为运行时实体字段。 */
 export declare const entityReferenceType: unique symbol;
 /** 普通模型对象的关联类型标记；标量与 unknown 保持原类型。 */
-export type ResourceEntity<TModel, TConfig extends ResourceConfig> = TModel extends
+export type ResourceEntity<
+  TModel,
+  TConfig extends ResourceConfig,
+  TInputs extends ResourceInputs = {},
+> = TModel extends
   | readonly unknown[]
   | Date
   | RegExp
@@ -34,7 +39,11 @@ export type ResourceEntity<TModel, TConfig extends ResourceConfig> = TModel exte
   : TModel extends object
     ? TModel &
         EntityRelations<TModel, TConfig> & {
-          readonly [entityReferenceType]?: { readonly model: TModel; readonly config: TConfig };
+          readonly [entityReferenceType]?: {
+            readonly model: TModel;
+            readonly config: TConfig;
+            readonly inputs: TInputs;
+          };
         }
     : TModel;
 /** 根据实体类型取得成员或单体引用；普通对象保持动态引用兼容。 */
@@ -43,12 +52,14 @@ export type EntityReference<TEntity extends object> =
     ? NonNullable<TEntity[typeof entityReferenceType]> extends {
         model: infer TModel;
         config: infer TConfig extends ResourceConfig;
+        inputs: infer TInputs extends ResourceInputs;
       }
       ? ResourceReference<
           TModel,
           false,
           TConfig,
-          TConfig extends { kind: 'singleton' } ? 'singleton' : 'member'
+          TConfig extends { kind: 'singleton' } ? 'singleton' : 'member',
+          TInputs
         >
       : ResourceReference<TEntity>
     : ResourceReference<TEntity>;
@@ -141,7 +152,7 @@ type EntityRelations<TModel, TConfig extends ResourceConfig> = string extends ke
     };
 /** 将声明保留的模型与配置映射为根引用。 */
 export type DefinitionReference<TDefinition, TResponse extends boolean = false> =
-  TDefinition extends ResourceDefinition<infer TModel, infer TConfig>
+  TDefinition extends ResourceDefinition<infer TModel, infer TConfig, infer TInputs>
     ? ResourceReference<
         TModel,
         TResponse,
@@ -152,7 +163,8 @@ export type DefinitionReference<TDefinition, TResponse extends boolean = false> 
             : TConfig['kind'] extends 'collection' | undefined
               ? 'collection'
               : 'dynamic'
-          : 'collection'
+          : 'collection',
+        TInputs
       >
     : ResourceReference;
 /** with 的 undefined 表示继承；宽 RequestOptions 必须保留两种可能返回形态。 */
@@ -167,25 +179,35 @@ type NextResponse<
         | ('data' extends TOptions['result'] ? false : never)
         | (undefined extends TOptions['result'] ? TPrevious : never)
   : TPrevious;
-interface ReferenceOperations<TModel, TResponse extends boolean, TConfig extends ResourceConfig> {
+type WriteInput<
+  TInputs,
+  TOperation extends keyof ResourceInputs,
+  TDefault,
+> = TOperation extends keyof TInputs ? TInputs[TOperation] : TDefault;
+interface ReferenceOperations<
+  TModel,
+  TResponse extends boolean,
+  TConfig extends ResourceConfig,
+  TInputs extends ResourceInputs,
+> {
   /** @returns 集合列表；无正文时 undefined。 */
   list(): Promise<
-    OperationResult<ResourceList<ResourceEntity<TModel, TConfig>> | undefined, TResponse>
+    OperationResult<ResourceList<ResourceEntity<TModel, TConfig, TInputs>> | undefined, TResponse>
   >;
   /** @returns 成员/单体数据；无正文时 undefined。 */
-  get(): Promise<OperationResult<ResourceEntity<TModel, TConfig> | undefined, TResponse>>;
+  get(): Promise<OperationResult<ResourceEntity<TModel, TConfig, TInputs> | undefined, TResponse>>;
   /** @param input 创建数据，不强制 id。 @returns 已适配数据。 */
   post(
-    input: Partial<TModel> | FormData | Blob | ArrayBuffer,
-  ): Promise<OperationResult<ResourceEntity<TModel, TConfig> | undefined, TResponse>>;
+    input: WriteInput<TInputs, 'post', Partial<TModel>> | FormData | Blob | ArrayBuffer,
+  ): Promise<OperationResult<ResourceEntity<TModel, TConfig, TInputs> | undefined, TResponse>>;
   /** @param input 替换数据。 @returns 已适配数据。 */
   put(
-    input: TModel | FormData | Blob | ArrayBuffer,
-  ): Promise<OperationResult<ResourceEntity<TModel, TConfig> | undefined, TResponse>>;
+    input: WriteInput<TInputs, 'put', TModel> | FormData | Blob | ArrayBuffer,
+  ): Promise<OperationResult<ResourceEntity<TModel, TConfig, TInputs> | undefined, TResponse>>;
   /** @param input 局部字段。 @returns 已适配数据。 */
   patch(
-    input: Partial<TModel> | FormData | Blob | ArrayBuffer,
-  ): Promise<OperationResult<ResourceEntity<TModel, TConfig> | undefined, TResponse>>;
+    input: WriteInput<TInputs, 'patch', Partial<TModel>> | FormData | Blob | ArrayBuffer,
+  ): Promise<OperationResult<ResourceEntity<TModel, TConfig, TInputs> | undefined, TResponse>>;
   /** @returns 原始业务返回值；无正文时 undefined。 */
   delete(): Promise<OperationResult<unknown, TResponse>>;
 }
@@ -194,6 +216,7 @@ interface ReferenceControls<
   TResponse extends boolean,
   TConfig extends ResourceConfig,
   TPosition extends ReferencePosition,
+  TInputs extends ResourceInputs,
 > {
   /** 无冲突的显式关系入口；动作按声明名直接调用。 */
   readonly $: {
@@ -205,15 +228,21 @@ interface ReferenceControls<
     hasChild(name: string): boolean;
   };
   /** @param query 查询补丁。 @returns 新引用。 */
-  query(query: Query): ResourceReference<TModel, TResponse, TConfig, TPosition>;
+  query(query: Query): ResourceReference<TModel, TResponse, TConfig, TPosition, TInputs>;
   /** @param number 从 1 起的页码。 @param size 正整数大小。 @returns 新引用。 */
-  page(number: number, size: number): ResourceReference<TModel, TResponse, TConfig, TPosition>;
+  page(
+    number: number,
+    size: number,
+  ): ResourceReference<TModel, TResponse, TConfig, TPosition, TInputs>;
   /** @param token 不透明 cursor。 @param size 正整数大小。 @returns 新引用。 */
-  cursor(token: string, size: number): ResourceReference<TModel, TResponse, TConfig, TPosition>;
+  cursor(
+    token: string,
+    size: number,
+  ): ResourceReference<TModel, TResponse, TConfig, TPosition, TInputs>;
   /** @param options 请求设置；result 为 undefined 时继承。 @returns 模式推导后的新引用。 */
   with<const TOptions extends RequestOptions>(
     options: TOptions & Record<Exclude<keyof TOptions, keyof RequestOptions>, never>,
-  ): ResourceReference<TModel, NextResponse<TOptions, TResponse>, TConfig, TPosition>;
+  ): ResourceReference<TModel, NextResponse<TOptions, TResponse>, TConfig, TPosition, TInputs>;
 }
 /** 不可变引用；可推导声明在编译期裁剪能力，动态配置仍需运行时校验。 */
 export type ResourceReference<
@@ -221,20 +250,21 @@ export type ResourceReference<
   TResponse extends boolean = false,
   TConfig extends ResourceConfig = ResourceConfig,
   TPosition extends ReferencePosition = 'dynamic',
-> = ReferenceControls<TModel, TResponse, TConfig, TPosition> &
+  TInputs extends ResourceInputs = {},
+> = ReferenceControls<TModel, TResponse, TConfig, TPosition, TInputs> &
   ActionFunctions<Actions<TConfig, TPosition>, TResponse> &
   Pick<
-    ReferenceOperations<TModel, TResponse, TConfig>,
+    ReferenceOperations<TModel, TResponse, TConfig, TInputs>,
     Extract<DeclaredNames<TConfig>, PositionNames<TPosition>>
   > &
   (TPosition extends 'collection' | 'dynamic'
-    ? { (identity: Identity): ResourceReference<TModel, TResponse, TConfig, 'member'> }
+    ? { (identity: Identity): ResourceReference<TModel, TResponse, TConfig, 'member', TInputs> }
     : {}) &
   (string extends keyof Relations<TConfig, TPosition>
     ? {}
     : {
         readonly [TName in keyof Relations<TConfig, TPosition> as TName extends
-          | keyof ReferenceControls<TModel, TResponse, TConfig, TPosition>
+          | keyof ReferenceControls<TModel, TResponse, TConfig, TPosition, TInputs>
           | StandardOperation
           | keyof Function
           | keyof Object

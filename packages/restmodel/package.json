@@ -1,6 +1,6 @@
 {
   "name": "@restmodel/restmodel",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Model-based RESTful HTTP client with fluent resource operations.",
   "type": "module",
   "files": [

@@ -6,7 +6,7 @@
 </script>
 <pre id="result">RUNNING</pre>
 <script type="module">
-import {createClient, resource, resourceOf, executeHttp, action} from '@restmodel/restmodel';
+import {createClient, resource, resourceOf, executeHttp, action, fetchTransport} from '@restmodel/restmodel';
 import {axiosTransport} from '/extension/index.js';
 import axios from 'axios';
 const checks=[];
@@ -44,6 +44,13 @@ try {
   check((await ax.users(0).get()).path==='/api/users/0','Axios final URL ignores instance baseURL');
   await fetch('/api/session');
   for(const [name,client] of [['Fetch',api],['Axios',ax]]){
+    const explicit=await client.$.request({method:'GET',path:'plain-json',options:{responseType:'json',cache:'no-store',keepalive:true}});
+    check(explicit.body.value===1&&explicit.headers['content-type']==='text/plain',`${name} explicit JSON retains actual media type with cache/keepalive`);
+    const empty=await client.$.request({method:'GET',path:'status-only',options:{responseType:'none',timeout:1000}});
+    check(empty.status===200&&empty.body===undefined,`${name} none cancels an unfinished body`);
+    let diagnosed=false;
+    try{await client.$.request({method:'GET',path:'http-error',options:{responseType:'none'}});}catch(error){diagnosed=error.kind==='http'&&error.response.body.reason==='denied';}
+    check(diagnosed,`${name} none preserves HTTP error diagnostics`);
     const omitted=await client.users(0).with({credentials:'omit'}).get();
     check(omitted.cookie==='',`${name} credentials omit excludes browser cookie`);
     for(const credentials of ['same-origin','include']){
@@ -51,6 +58,9 @@ try {
       check(included.cookie.includes('restmodel-session=browser'),`${name} credentials ${credentials} includes browser cookie`);
     }
   }
+  let injected=0;
+  const custom=createClient({baseURL:'/api',resources:{},transport:fetchTransport({fetch:(...args)=>{injected++;return fetch(...args);}})});
+  check((await custom.$.request({method:'GET',path:'plain-json',options:{responseType:'json'}})).body.value===1&&injected===1,'Injected application Fetch in browser');
   rejected=false;try{await ax.$.request({method:'GET',path:'redirect'});}catch{rejected=true;}
   check(rejected,'Axios redirect rejection');
   const count=await (await fetch('/api/redirect-count')).json();

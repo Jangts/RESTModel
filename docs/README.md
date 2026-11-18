@@ -34,6 +34,7 @@
 
 ## 维护资料
 
+- [0.1.0 发布准备](maintenance/release-0.1.0.md)：版本、审查修正、验收、产物与发包步骤。
 - [开发状态与维护事项](maintenance/development-status.md)：实施范围、工具接入和发布准备。
 - [实施计划与验收门槛](maintenance/implementation-plan.md)：后续阶段、依赖、验证范围与下一实施单元。
 - [首版闭环验收记录](maintenance/runtime-verification.md)：实现范围、真实验证证据与未验证边界。

@@ -1,6 +1,6 @@
 {
   "name": "@restmodel/pinia",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Pinia state management integration for RESTModel.",
   "type": "module",
   "files": [

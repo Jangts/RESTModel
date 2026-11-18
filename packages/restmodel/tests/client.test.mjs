@@ -1022,3 +1022,15 @@ test('action template syntax and static path safety are validated during declara
   }
   assert.doesNotThrow(() => action({ method: 'GET', path: '/lookup/:id' }));
 });
+test('invalid Unicode in raw, resource and action paths stays a configuration error before HTTP', () => {
+  const transport = async () => assert.fail('invalid path must not execute');
+  const api = createClient({ baseURL: '/api', resources: {}, transport });
+  for (const path of ['\uD800', 'users/\uDFFF', '%ED%A0%80']) {
+    assert.throws(() => api.$.request({ method: 'GET', path }), ResourceConfigurationError);
+    assert.throws(() => action({ method: 'GET', path }), ResourceConfigurationError);
+    assert.throws(
+      () => createClient({ baseURL: '/api', transport, resources: { users: resource({ path }) } }),
+      ResourceConfigurationError,
+    );
+  }
+});

@@ -4,6 +4,7 @@ export type {
   ResourcePreset,
   ResourcePresetDefinition,
   ResourceConfig,
+  ResourceInputs,
   ResourceDefinition,
 } from './resource.js';
 export { standardOperations, ResourceConfigurationError } from './operations.js';
@@ -37,9 +38,11 @@ export type {
 export type { Identity, Query, QueryValue } from './request.js';
 export { executeHttp } from './http/execute.js';
 export { fetchTransport } from './http/fetch.js';
+export type { FetchTransportOptions } from './http/fetch.js';
 export { RequestError } from './http/errors.js';
 export type { RequestErrorKind } from './http/errors.js';
 export type {
+  TransportSettings,
   HttpRequest,
   HttpResponse,
   Transport,
@@ -47,6 +50,8 @@ export type {
   RequestOptions,
   RequestContext,
   CredentialsMode,
+  ResponseType,
+  CacheMode,
 } from './http/types.js';
 export type { ResourceTree, ActionTree } from './resource.js';
 export { decodeHttpBody } from './http/decode.js';

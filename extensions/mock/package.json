@@ -1,6 +1,6 @@
 {
   "name": "@restmodel/mock",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "HTTP debugging and mocking extension for RESTModel.",
   "type": "module",
   "files": [

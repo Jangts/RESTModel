@@ -4,7 +4,15 @@ RESTModel is a model-based client for HTTP RESTful APIs. Resource declarations d
 
 ## Environment and installation
 
-Use Node.js 22+ and pnpm 8.10.5. Browsers need Fetch, AbortController and FormData. The main package and three extensions target public distribution but have not been published yet. For now, run these commands at the repository root:
+Use Node.js 22+ or a modern browser supporting Fetch, AbortController and FormData. Repository development uses pnpm 8.10.5.
+
+Install 0.1.0 once the registry release is available:
+
+```sh
+pnpm add @restmodel/restmodel@0.1.0
+```
+
+For source development or local packages before publication, run these commands at the repository root:
 
 ```sh
 pnpm install

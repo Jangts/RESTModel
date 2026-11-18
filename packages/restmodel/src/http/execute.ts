@@ -1,6 +1,6 @@
 /** 统一 HTTP 生命周期：独立请求上下文、取消、响应处理、错误通知与后台观测。 */
 import { ResourceConfigurationError } from '../configuration.js';
-import { assertCredentials } from './credentials.js';
+import { transportSettings } from './options.js';
 import { normalizeHeaders } from './headers.js';
 import { RequestError } from './errors.js';
 import type {
@@ -68,17 +68,22 @@ export async function executeRequest<TResult>(
   });
   const abort = () => {
     if (closed || controller.signal.aborted) return;
-    controller.abort();
-    rejectAbort(new RequestError(reason, { request }));
+    const cause =
+      reason === 'timeout'
+        ? new DOMException('RESTModel request timed out', 'TimeoutError')
+        : signals.find((signal) => signal.aborted)?.reason;
+    controller.abort(cause);
+    rejectAbort(new RequestError(reason, { request, cause: controller.signal.reason }));
   };
   const active = () => {
-    if (finished || controller.signal.aborted) throw new RequestError(reason, { request });
+    if (finished || controller.signal.aborted)
+      throw new RequestError(reason, { request, cause: controller.signal.reason });
   };
   const run = async () => {
     active();
     request = {
       ...input,
-      ...(settings.credentials === undefined ? {} : { credentials: settings.credentials }),
+      ...transportSettings(settings),
       signal: controller.signal,
     };
     if (options.prepareRequest) {
@@ -91,9 +96,10 @@ export async function executeRequest<TResult>(
     active();
     if (!request || request.url !== input.url || request.method !== input.method)
       throw new ResourceConfigurationError('prepareRequest: URL and method cannot change');
-    assertCredentials(request.credentials);
+    const transfer = transportSettings(request);
     request = Object.freeze({
       ...request,
+      ...transfer,
       headers: Object.freeze({ ...normalizeHeaders(request.headers) }),
       signal: controller.signal,
     });
@@ -110,6 +116,8 @@ export async function executeRequest<TResult>(
       throw new RequestError('response-shape', { request });
     if (response.status < 200 || response.status >= 300)
       throw new RequestError('http', { request, response });
+    if (request.responseType === 'none')
+      response = { status: response.status, headers: response.headers };
     if (options.processResponse) {
       try {
         await options.processResponse(response, context);

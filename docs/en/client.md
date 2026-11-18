@@ -38,7 +38,7 @@ query/page/cursor/with return new contexts. Later query keys replace earlier val
 
 Header names become lowercase; undefined removes a header. Plain JSON bodies are encoded when execution starts. FormData, Blob and ArrayBuffer retain their instances and are not deeply frozen; keep them stable until completion. The platform supplies FormData boundaries.
 
-with accepts only headers/signal/timeout/result/credentials, not arbitrary scheme changes. The default result mode is data. Missing or explicitly undefined result inherits the previous mode; explicit data switches back. When a broad RequestOptions variable cannot determine the mode statically, the return type is a union. Response mode returns `{ data, response }`, with data using the same adaptation and modeling pipeline.
+with accepts only headers/signal/timeout/result/credentials/responseType/cache/keepalive, not arbitrary scheme changes. The default result mode is data. Missing or explicitly undefined result inherits the previous mode; explicit data switches back. When a broad RequestOptions variable cannot determine the mode statically, the return type is a union. Response mode returns `{ data, response }`, with data using the same adaptation and modeling pipeline.
 
 credentials accepts omit/same-origin/include through client defaults, reference with, or raw HTTP options. Missing and undefined values inherit. Built-in Fetch otherwise retains the platform default, same-origin. omit excludes browser cookies and other implicit credentials; it does not remove an explicit Authorization header. Node has no automatic browser cookie store, and the policy does not bypass CORS. Custom Transports should honor HttpRequest.credentials. See the Axios reference for its mapping.
 
@@ -48,6 +48,23 @@ const external = createClient({
   defaults: { credentials: 'omit', timeout: 5000 },
 });
 await external.$.request({ method: 'GET', path: 'forecast', query: { lat: 30, lon: 114 } });
+```
+
+### Fetch and response reading
+
+`fetchTransport({ fetch, cache, keepalive, responseType, credentials })` accepts an application-owned Fetch. Without fetch, each execution reads global Fetch. Options are snapshotted and cannot replace the final method, URL, body, authorization headers or cancellation signal. Explicit transport settings in client defaults, reference with or raw request options override transport defaults; undefined inherits and false is a valid override.
+
+responseType accepts auto/json/text/none. The default auto decodes using the actual Content-Type. json requires JSON while retaining real response headers, rejecting HTML success pages; text keeps text. none cancels an unused successful body, while HTTP failures are still read and decoded by their actual media type for diagnostics. result only controls `{ data, response }` wrapping. Ignoring a body does not change compile-time model types and does not guarantee business data is present.
+
+cache accepts standard Fetch cache policies; only-if-cached also uses same-origin mode. keepalive is boolean and provides an opportunity to send after page closure, without guaranteeing server completion. Both bundled Fetch and Axios transports support these settings; custom Transports must honor the same contract. Timeout and cancellation retain their original cause. onError is a notification, not an error replacement or retry hook.
+
+```ts
+import { fetchTransport } from '@restmodel/restmodel';
+const transport = fetchTransport({ fetch: globalThis.fetch, cache: 'no-store' });
+const connected = createClient({ baseURL: '/api', transport, resources: {
+  users: resource({ operations: ['delete'] }),
+} });
+await connected.users('one').with({ responseType: 'none', keepalive: true }).delete();
 ```
 
 ## Service rules
@@ -145,6 +162,20 @@ list returns ResourceList: items is a normal array, the result is iterable, tota
 Object results are local snapshot proxies. Object.keys, spread and JSON reflect the data; metadata lives in a WeakMap. Data fields take precedence. Declared, nonconflicting relations can be accessed as properties at runtime. Use `$.child(name)` or `resourceOf(entity)` as stable TypeScript entries. Inferred const declarations retain named relations and action input/output while filtering terminal methods by capabilities, preset patches and collection/member/singleton position. Dynamic configuration is still validated at runtime. Use `resource(config).typed<TModel>()` to retain both model and exact configuration types. typed returns the same frozen declaration without copying it or sending requests. `resource<TModel>(config)` remains supported, but capabilities and relations use dynamic types because of TypeScript partial generic inference limits; supplying the second type parameter is another option. Pagination modes remain runtime-validated; dynamic relation models are unknown. Generics do not make backend data trustworthy.
 
 For get, identity in the requested address takes precedence. Collection records and post results infer identity using the scheme. Data without identity stays readable, but later identity-dependent operations raise identity instead of creating an undefined path. Entity references clear the original query/page/cursor and restore data result mode while keeping headers/signal/timeout/credentials and resource rules. Add queries again when needed. Binding an identity or accessing children on explicit references preserves explicit chain state; children also inherit result mode. Editing local fields does not send requests; entities are not globally merged. Arrays and non-plain objects such as Date, Map and Blob are returned unchanged without entity metadata; resourceOf raises response-shape for them. Scalars/null are not disguised as objects. Status 204/205 and empty bodies return undefined without an extra GET.
+
+
+### Independent write inputs
+
+The second generic of `resource(config).typed<Model, Inputs>()` declares JSON inputs by post/put/patch. Reads and write results still use Model. Omitted inputs keep the defaults: `Partial<Model>` for post/patch and Model for put. Binary body inputs remain available. Types do not grant operations, transform data or replace runtime validation. Derived references and resourceOf(entity) retain the same input contract.
+
+```ts
+type RecordView = { id: string; name: string; createdAt: number };
+const records = resource({ operations: ['get', 'put'] }).typed<RecordView, {
+  put: { revision: number; name: string };
+}>();
+const recordsApi = createClient({ baseURL: '/api', resources: { records } });
+await recordsApi.records('one').put({ revision: 1, name: 'Saved' });
+```
 
 ## Actions and raw HTTP
 

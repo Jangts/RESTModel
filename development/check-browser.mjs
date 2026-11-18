@@ -27,6 +27,21 @@ async function serve(request, response) {
     response.end();
     return;
   }
+  if (url.pathname === '/api/plain-json') {
+    response.setHeader('content-type', 'text/plain');
+    response.end('{"value":1}');
+    return;
+  }
+  if (url.pathname === '/api/status-only') {
+    response.writeHead(200, { 'content-type': 'application/json' });
+    response.write('{"pending":');
+    return; // 正文故意保持打开：none 必须主动取消，而非等待流结束。
+  }
+  if (url.pathname === '/api/http-error') {
+    response.writeHead(403, { 'content-type': 'application/json' });
+    response.end('{"reason":"denied"}');
+    return;
+  }
   if (url.pathname.startsWith('/api/')) {
     let text = '';
     for await (const chunk of request) text += chunk;

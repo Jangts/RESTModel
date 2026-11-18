@@ -1,15 +1,15 @@
 # @restmodel/restmodel
 
-RESTful 资源声明与链式 HTTP 客户端。要求 Node.js 22+，或提供现代 Fetch/AbortController/FormData 的浏览器。本包面向公共发布，目前可使用工作区构建或本地 tarball；尚未公开发布，采用 [MIT License](LICENSE)。
+RESTful 资源声明与链式 HTTP 客户端。要求 Node.js 22+，或提供现代 Fetch/AbortController/FormData 的浏览器。0.1.0 为首个公共版本，采用 [MIT License](LICENSE)。
 
 仓库根目录执行 `pnpm install`、`pnpm build`。本包无第三方运行依赖，默认使用内置 Fetch 发送真实 HTTP 请求；只有替换执行器时才需配置 transport。
 
 ## 安装
 
-正式发布后，可从 npm 安装（当前尚未发布）：
+从 npm 安装 0.1.0（registry 发布状态见仓库发布记录）：
 
 ```sh
-pnpm add @restmodel/restmodel
+pnpm add @restmodel/restmodel@0.1.0
 ```
 
 发布前可在仓库根目录执行 `pnpm install`、`pnpm build`，再在 `packages/restmodel` 执行 `pnpm pack --pack-destination /tmp/restmodel-pack`。在消费项目中用 `pnpm add /tmp/restmodel-pack/实际生成的文件名.tgz` 安装。打包会先清理并重新构建本包的 dist。
@@ -32,7 +32,7 @@ await api.users.post({ name: 'Ivan' });
 
 未声明 operations 时没有操作能力；预设显式继承。`'*'` 开启资源形态适用的标准操作，`{ '*': true, delete: false }` 显式关闭某项。singleton 仅允许 get/put/patch/delete，集合 list/post，成员 get/put/patch/delete；错误调用在请求前拒绝。
 
-query/page/cursor/with 返回隔离的新引用。with 接受 headers/signal/timeout/result/credentials；result 的 undefined 继承前层。executeHttp 的请求 signal 与单次设置 signal 组合，任一取消均生效；response 模式返回 `{ data, response }`。取消和超时停止等待并通知 Transport，不代表服务端副作用撤销。不会自动重试写操作。
+query/page/cursor/with 返回隔离的新引用。with 接受 headers/signal/timeout/result/credentials/responseType/cache/keepalive；result 的 undefined 继承前层。executeHttp 的请求 signal 与单次设置 signal 组合，任一取消均生效；response 模式返回 `{ data, response }`。取消和超时停止等待并通知 Transport，不代表服务端副作用撤销。不会自动重试写操作。
 
 scheme 使用 identity/envelope/success/map/pagination；false 关闭相应继承规则，分页配置整段替换。pagination 支持 page/offset/cursor；未知 total 为 undefined。默认裸 body、id 身份、裸数组列表；不猜后端字段。
 
@@ -43,6 +43,8 @@ resource 支持 children/members 及 actions/memberActions，关系通过 `ref.$
 ResourceConfigurationError 表示配置阶段错误；RequestError.kind 区分 unsupported-operation/identity/prepare/process/network/timeout/cancel/http/business/response-shape。默认诊断不输出原始上下文；显式访问 request/response/cause 时调用方负责脱敏。
 
 完整使用与限制见[客户端参考](https://restmodel-docs.pages.jangts.cafe/zh/reference/client.html)和[操作声明](https://restmodel-docs.pages.jangts.cafe/zh/reference/operations.html)。tarball 内公开入口为本包根，不从 src 导入。
+
+内置 `fetchTransport({ fetch, cache, keepalive, responseType })` 可复用应用 Fetch，不必重写执行器；传输策略可由 with 逐请求覆盖。responseType 为 auto/json/text/none，none 成功时立即释放正文，失败仍保留诊断。原始响应头不因显式 JSON 解码而改变。`typed<Model, { put: SaveInput; post: CreateInput }>()` 可独立声明标准写入参数，不改变模型返回类型或能力白名单。完整继承和取消规则见[客户端参考](https://restmodel-docs.pages.jangts.cafe/zh/reference/client.html)。
 
 ## 单身份接口例外
 

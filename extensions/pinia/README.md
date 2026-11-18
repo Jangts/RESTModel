@@ -1,14 +1,13 @@
 # @restmodel/pinia
 
-公开资源调用的 Pinia 状态封装；peer 为 @restmodel/restmodel ^0.0.0、pinia ^4.1.0、vue ^3.5.45。本扩展面向公共发布，尚未发布，采用 [MIT License](LICENSE)；仓库执行 `pnpm install`、`pnpm build`。
-
+公开资源调用的 Pinia 状态封装；peer 为 @restmodel/restmodel ^0.1.0、pinia ^4.1.0、vue ^3.5.45。本扩展 0.1.0 采用 [MIT License](LICENSE)；仓库执行 `pnpm install`、`pnpm build`。
 
 ## 安装
 
-正式发布后，可从 npm 安装（当前尚未发布）：
+从 npm 安装 0.1.0（registry 发布状态见仓库发布记录）：
 
 ```sh
-pnpm add @restmodel/restmodel @restmodel/pinia pinia vue
+pnpm add @restmodel/restmodel@0.1.0 @restmodel/pinia@0.1.0 pinia vue
 ```
 
 发布前可在仓库根目录执行 `pnpm install`、`pnpm build`，再在 `extensions/pinia` 执行 `pnpm pack --pack-destination /tmp/restmodel-pack`。在消费项目中用 `pnpm add /tmp/restmodel-pack/实际生成的文件名.tgz` 安装；扩展需同时安装主包 tarball 及上述第三方 peer 依赖。打包会先清理并重新构建本包的 dist。

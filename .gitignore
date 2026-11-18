@@ -8,3 +8,4 @@ dist/
 
 apps/docs/.generated/
 apps/docs/.vitepress/cache/
+artifacts/release/

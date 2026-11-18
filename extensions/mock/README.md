@@ -1,17 +1,16 @@
 # @restmodel/mock
 
-装饰公开 Transport 的 HTTP 调试扩展，peer 为 @restmodel/restmodel ^0.0.0。本扩展面向公共发布，尚未发布，采用 [MIT License](LICENSE)；仓库根执行 `pnpm install`、`pnpm build`。
-
+装饰公开 Transport 的 HTTP 调试扩展，peer 为 @restmodel/restmodel ^0.1.0。本扩展 0.1.0 采用 [MIT License](LICENSE)；仓库根执行 `pnpm install`、`pnpm build`。
 
 ## 安装
 
-正式发布后，可从 npm 安装（当前尚未发布）：
+从 npm 安装 0.1.0（registry 发布状态见仓库发布记录）：
 
 ```sh
-pnpm add @restmodel/restmodel @restmodel/mock
+pnpm add @restmodel/restmodel@0.1.0 @restmodel/mock@0.1.0
 ```
 
-发布前可在仓库根目录执行 `pnpm install`、`pnpm build`，再在 `extensions/mock` 执行 `pnpm pack --pack-destination /tmp/restmodel-pack`。在消费项目中用 `pnpm add /tmp/restmodel-pack/实际生成的文件名.tgz` 安装；扩展需同时安装主包 tarball 及上述第三方 peer 依赖。打包会先清理并重新构建本包的 dist。
+发布前可在仓库根目录执行 `pnpm install`、`pnpm build`，再在 `extensions/mock` 执行 `pnpm pack --pack-destination /tmp/restmodel-pack`。在消费项目中用 `pnpm add /tmp/restmodel-pack/实际生成的文件名.tgz` 安装；扩展需同时安装主包 tarball；本扩展没有第三方 peer 依赖。打包会先清理并重新构建本包的 dist。
 
 ## 使用
 

@@ -10,7 +10,9 @@
 
 ## 使用
 
-要求 Node.js 22+，或支持现代 Web API 的浏览器。主包与扩展均面向公共发布，尚未公开发布；目前使用工作区或本地 tarball；分发方式见[快速上手](docs/getting-started.md)。
+要求 Node.js 22+，或支持现代 Web API 的浏览器。0.1.0 提供主包与三个可选扩展；安装方式见[快速上手](docs/getting-started.md)。
+
+0.1.0 的变更见[更新记录](CHANGELOG.md)，本地验收、产物及 registry 发布状态见[发布准备](docs/maintenance/release-0.1.0.md)。
 
 ```ts
 import { createClient, resource } from '@restmodel/restmodel';
@@ -73,5 +75,7 @@ pnpm docs:dev
 `pnpm docs:build` 构建静态文档站，`pnpm docs:preview` 预览，`pnpm docs:check` 检查页面和公开导出覆盖。站点使用提供的 SVG 标识，支持本地全文搜索、明暗主题和移动端阅读。在线文档见 [RESTModel Docs](https://restmodel-docs.pages.jangts.cafe/)，源码与维护说明见 [apps/docs](apps/docs/README.md)。
 
 完整代码验收执行 `pnpm check`，包括类型、行为、本机 HTTP、tarball 消费和真实 Chrome 检查；需本机监听权限及 Chrome。单项使用 `pnpm check:packages`、`pnpm check:browser`，可用 CHROME_BIN 指定 Chrome。GitHub Actions 配置 Node 22/24 矩阵，远端结果以实际工作流为准。
+
+`pnpm release:prepare` 验证发布包的类型、行为、格式、真实浏览器和独立安装消费，将四个 0.1.0 tarball 及 SHA256SUMS 保存到 `artifacts/release/0.1.0/`。文档站有独立的 docs:check/build 命令；registry 发布步骤见发布准备记录。
 
 项目规则、设计提案和维护记录分别收录在[文档索引](docs/README.md)中。项目采用 [MIT License](LICENSE)。

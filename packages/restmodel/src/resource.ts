@@ -10,6 +10,16 @@ import type { Operations, ResourceKind, ResolvedOperations } from './operations.
 
 declare const modelType: unique symbol;
 declare const configType: unique symbol;
+declare const inputsType: unique symbol;
+/** 标准写操作的独立 JSON 输入；未声明的操作保留模型推导缺省。 */
+export interface ResourceInputs {
+  /** 创建正文；缺省 Partial<TModel>。 */
+  readonly post?: unknown;
+  /** 替换正文；缺省 TModel。 */
+  readonly put?: unknown;
+  /** 局部修改正文；缺省 Partial<TModel>。 */
+  readonly patch?: unknown;
+}
 declare const presetType: unique symbol;
 /** 可复用的能力声明，不提前绑定资源形态。 */
 export interface ResourcePreset {
@@ -47,15 +57,22 @@ export interface ResourceConfig extends ResourcePreset {
 export interface ResourceDefinition<
   TModel = unknown,
   TConfig extends ResourceConfig = ResourceConfig,
+  TInputs extends ResourceInputs = {},
 > {
   /** 在已推导配置上绑定模型类型，不改变运行时声明。 */
-  readonly typed: <TNextModel>() => ResourceDefinition<TNextModel, TConfig>;
+  readonly typed: <
+    TNextModel,
+    TNextInputs extends ResourceInputs &
+      Record<Exclude<keyof TNextInputs, keyof ResourceInputs>, never> = {},
+  >() => ResourceDefinition<TNextModel, TConfig, TNextInputs>;
   /** 已确定的资源形态。 */
   readonly kind: ResourceKind;
   /** 已归一化的只读能力映射。 */
   readonly operations: ResolvedOperations;
   /** 仅携带模型类型，不产生运行时字段。 */
   readonly [modelType]?: TModel;
+  /** 独立写入类型只参与编译期检查，不授予操作或改变序列化。 */
+  readonly [inputsType]?: TInputs;
   /** 仅携带原配置类型，不产生运行时字段。 */
   readonly [configType]?: TConfig;
   /** 已快照的资源局部配置，供客户端装配。 */

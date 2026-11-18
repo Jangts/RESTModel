@@ -39,7 +39,7 @@ query/page/cursor/with 都返回新上下文。query 按键后写覆盖，数组
 
 headers 名称归一为小写；undefined 删除头。普通 JSON body 在执行开始时编码，FormData/Blob/ArrayBuffer 保持原实例，不深冻结，调用方应在请求完成前保持稳定。FormData boundary 交由平台处理。
 
-with 仅接受 headers/signal/timeout/result/credentials，不能任意修改 scheme。result 默认 data；with 中缺失或显式 undefined 表示继承已有模式，显式 data 才切回数据模式。宽 RequestOptions 变量无法静态确定模式时，返回类型为两种形态的联合。response 模式返回 `{ data, response }`，data 使用同一适配和建模流程。
+with 仅接受 headers/signal/timeout/result/credentials/responseType/cache/keepalive，不能任意修改 scheme。result 默认 data；with 中缺失或显式 undefined 表示继承已有模式，显式 data 才切回数据模式。宽 RequestOptions 变量无法静态确定模式时，返回类型为两种形态的联合。response 模式返回 `{ data, response }`，data 使用同一适配和建模流程。
 
 credentials 接受 omit/same-origin/include，可在客户端 defaults、引用 with 或 raw HTTP options 中设置；缺失和 undefined 继承。默认 Fetch 未设置时沿用平台的 same-origin。omit 排除浏览器 Cookie 等隐式凭据，不删除显式 Authorization 头。Node 不自动提供浏览器 Cookie 仓库；策略不绕过 CORS。自定义 Transport 应遵守 HttpRequest.credentials；Axios 的映射见扩展参考。
 
@@ -49,6 +49,23 @@ const external = createClient({
   defaults: { credentials: 'omit', timeout: 5000 },
 });
 await external.$.request({ method: 'GET', path: 'forecast', query: { lat: 30, lon: 114 } });
+```
+
+### Fetch 与响应读取
+
+`fetchTransport({ fetch, cache, keepalive, responseType, credentials })` 可绑定应用已有 Fetch；省略 fetch 时，每次执行读取全局 Fetch。配置在构造时快照，不能覆盖最终方法、URL、正文、认证头或取消信号。客户端 defaults、引用 with 与 raw 请求 options 的显式传输字段覆盖执行器缺省；undefined 继承，false 是有效覆盖。
+
+responseType 接受 auto/json/text/none，缺省 auto 按真实 Content-Type 解码。json 显式要求 JSON，保留真实响应头，不能以 HTML 成功页冒充数据；text 保留文本。none 仅忽略成功正文并取消未使用的流，HTTP 失败仍读取并按真实媒体类型解码供诊断。result 只决定 `{ data, response }` 包装，两者互不替代。忽略正文的设置不改变编译期模型类型，调用方不能据此假定仍有业务数据。
+
+cache 接受标准 Fetch 缓存策略；only-if-cached 同时限定为 same-origin 模式。keepalive 为布尔值，只提供页面关闭后的发送机会，不保证服务端已完成。Fetch 与 Axios 配套执行器均支持这些设置；自定义 Transport 需要遵守同一合同。超时和取消保留原始 cause，onError 是错误通知，不用于改写错误或自动重发。
+
+```ts
+import { fetchTransport } from '@restmodel/restmodel';
+const transport = fetchTransport({ fetch: globalThis.fetch, cache: 'no-store' });
+const connected = createClient({ baseURL: '/api', transport, resources: {
+  users: resource({ operations: ['delete'] }),
+} });
+await connected.users('one').with({ responseType: 'none', keepalive: true }).delete();
 ```
 
 ## 服务规则
@@ -148,6 +165,20 @@ list 返回 ResourceList：items 为普通数组，结果对象可迭代，total
 对象返回本地数据快照代理，Object.keys、展开和 JSON 反映数据；元信息存 WeakMap。数据字段优先，已声明且不冲突的关联可在运行时以属性读取；TypeScript 使用 `$.child(name)` 或 `resourceOf(entity)` 作为稳定入口。可推导的 const 声明按能力白名单、预设补丁和集合/成员/单体位置裁剪终端方法，保留具名关系及动作输入输出；动态配置仍执行运行时校验。使用 `resource(config).typed<TModel>()` 同时保留模型与精确配置；typed 不复制声明、不发请求，返回同一个冻结定义。`resource<TModel>(config)` 仍支持，但因 TypeScript 部分泛型推导限制，能力和关系采用动态类型；也可显式提供第二泛型。分页模式仍在运行时校验，动态关系模型为 unknown，不凭泛型信任后端数据。
 
 get 的地址身份优先；集合返回记录与 post 结果按 identity 推导身份。缺失身份仍可读数据，需要身份的后续操作抛 identity，不构造 undefined 路径。实体后续引用清除原请求的 query/page/cursor，并恢复 data 返回模式，保留 headers/signal/timeout/credentials 和资源规则；调用者可重新追加查询。直接在显式引用上绑定身份或访问子资源，仍继承显式链状态，子资源也继承 result 模式。本地字段修改不会自动请求，不全局合并实体。数组和 Date、Map、Blob 等非普通对象原样返回，不附加实体元信息；resourceOf 对这些实例报 response-shape。标量/null 不伪装对象；204/205/无正文返回 undefined，不补发 GET。
+
+
+### 独立写入类型
+
+`resource(config).typed<Model, Inputs>()` 的第二泛型按 post/put/patch 分别声明 JSON 输入，读取与写入结果仍使用 Model。省略的输入保持 post/patch 为 `Partial<Model>`、put 为 Model 的缺省，二进制正文入口保持有效。类型声明不开放操作、不转换数据，也不代替运行时校验；派生引用及 resourceOf(entity) 保留同一输入合同。
+
+```ts
+type RecordView = { id: string; name: string; createdAt: number };
+const records = resource({ operations: ['get', 'put'] }).typed<RecordView, {
+  put: { revision: number; name: string };
+}>();
+const recordsApi = createClient({ baseURL: '/api', resources: { records } });
+await recordsApi.records('one').put({ revision: 1, name: '保存' });
+```
 
 ## 特殊动作与 raw HTTP
 

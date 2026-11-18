@@ -24,7 +24,8 @@
     "test:live": "pnpm --filter @restmodel/restmodel build && node --test --test-concurrency=1 development/open-platforms/live.test.mjs",
     "demo": "pnpm --filter @restmodel/restmodel build && node development/open-platforms/demo.mjs",
     "demo:gitee": "pnpm demo gitee",
-    "demo:github": "pnpm demo github"
+    "demo:github": "pnpm demo github",
+    "release:prepare": "pnpm typecheck && pnpm test && pnpm format:check && node development/check-browser.mjs && node development/check-packages.mjs --pack-destination artifacts/release/0.1.0"
   },
   "devDependencies": {
     "prettier": "3.6.2",

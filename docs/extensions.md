@@ -9,7 +9,9 @@
 | 模拟 HTTP | mock 的 withMock | 装饰 Transport，按最终 HTTP 请求匹配 |
 | 共享请求状态 | pinia 的 defineResourceStore | 需要 Pinia、Vue；管理请求生命周期，不提供缓存 |
 
-各扩展均面向公共发布，目前尚未发布。工作区先执行 `pnpm install`、`pnpm build`；仓库外消费使用本地 tarball 并同时安装对应 peer，具体版本以各扩展 README 和 package.json 为准。
+0.1.0 扩展兼容主包 ^0.1.0；npm 安装方式见各扩展 README，registry 状态以发布记录为准。工作区先执行 `pnpm install`、`pnpm build`；仓库外消费使用本地 tarball 并同时安装对应 peer，具体版本以各扩展 README 和 package.json 为准。
+
+原生 Fetch 支持注入应用 Fetch；Fetch 与 Axios 均遵守 responseType/cache/keepalive 及显式凭据设置，详情见[客户端与 HTTP 执行](client.md)。
 
 ## Axios
 

@@ -9,7 +9,9 @@ Ordinary resource calls send real HTTP through built-in Fetch without executor c
 | Mock HTTP | withMock | Decorates Transport; matches final HTTP requests |
 | Shared request state | defineResourceStore | Requires Pinia and Vue; lifecycle management, no caching |
 
-Extensions target public distribution but are not published yet. Run `pnpm install` and `pnpm build` in the workspace. Outside it, install local tarballs and matching peers. See package READMEs and package.json for exact versions.
+The 0.1.0 extensions accept core ^0.1.0. Package READMEs describe npm installation once the registry release is available. Run `pnpm install` and `pnpm build` in the workspace. Outside it, install local tarballs and matching peers. See package READMEs and package.json for exact versions.
+
+Native Fetch accepts an application Fetch. Both Fetch and Axios honor responseType/cache/keepalive and explicit credentials settings; see [Client and HTTP execution](client.md).
 
 ## Axios
 

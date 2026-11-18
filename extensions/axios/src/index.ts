@@ -12,7 +12,14 @@ import type { Transport } from '@restmodel/restmodel';
 export function axiosTransport(instance: AxiosInstance = axios.create()): Transport {
   return async (request) => {
     try {
-      const response = await instance.request<string>({
+      const statusOnly = request.responseType === 'none';
+      const fetchOptions = {
+        redirect: 'manual' as const,
+        ...(request.cache === undefined ? {} : { cache: request.cache }),
+        ...(request.keepalive === undefined ? {} : { keepalive: request.keepalive }),
+        ...(request.cache === 'only-if-cached' ? { mode: 'same-origin' as const } : {}),
+      };
+      const response = await instance.request<string | ReadableStream<Uint8Array>>({
         baseURL: '',
         method: request.method,
         url: request.url,
@@ -21,14 +28,18 @@ export function axiosTransport(instance: AxiosInstance = axios.create()): Transp
         ...(request.signal ? { signal: request.signal } : {}),
         validateStatus: () => true,
         maxRedirects: 0,
-        ...(typeof window === 'undefined' && request.credentials === undefined
+        ...(typeof window === 'undefined' &&
+        request.credentials === undefined &&
+        request.cache === undefined &&
+        request.keepalive === undefined &&
+        !statusOnly
           ? {}
-          : { adapter: 'fetch' as const, fetchOptions: { redirect: 'manual' as const } }),
+          : { adapter: 'fetch' as const, fetchOptions }),
         // Axios Fetch 在运行时接受三态字符串，但其公共声明仍只标注 boolean。
         ...(request.credentials === undefined
           ? {}
           : { withCredentials: request.credentials as unknown as boolean }),
-        responseType: 'text',
+        responseType: statusOnly ? 'stream' : 'text',
         transformResponse: [],
       });
       const headers = Object.fromEntries(
@@ -36,7 +47,15 @@ export function axiosTransport(instance: AxiosInstance = axios.create()): Transp
           .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
           .map(([key, value]) => [key.toLowerCase(), value]),
       );
-      const body = decodeHttpBody(response.data, response.status, headers);
+      if (statusOnly && response.status >= 200 && response.status < 300) {
+        if (typeof response.data !== 'string') void response.data.cancel().catch(() => {});
+        return { status: response.status, headers };
+      }
+      const text =
+        typeof response.data === 'string'
+          ? response.data
+          : await new Response(response.data).text();
+      const body = decodeHttpBody(text, response.status, headers, request.responseType);
       return { status: response.status, headers, body };
     } catch (cause) {
       if (axios.isAxiosError(cause) && ['ECONNABORTED', 'ETIMEDOUT'].includes(cause.code ?? ''))

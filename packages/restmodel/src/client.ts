@@ -7,7 +7,7 @@ import type { ActionTree, ResourceDefinition, ResourceTree } from './resource.js
 import { isResourceDefinition } from './resource.js';
 import { standardOperations, isHttpMethod } from './operations.js';
 import type { HttpMethod, StandardOperation } from './operations.js';
-import { assertCredentials } from './http/credentials.js';
+import { requestOptionKeys, transportSettings } from './http/options.js';
 import { executeRequest } from './http/execute.js';
 import { operationRoute } from './operation-route.js';
 import { reservedResourceNames, validateActionNames } from './reference-names.js';
@@ -76,13 +76,13 @@ function settingsMerge(previous: RequestOptions, next: RequestOptions): RequestO
   previous = Object.assign(Object.create(null) as RequestOptions, previous);
   next = Object.assign(Object.create(null) as RequestOptions, Object.fromEntries(fields));
   for (const key of fields.keys())
-    if (!['headers', 'signal', 'timeout', 'result', 'credentials'].includes(key))
+    if (!requestOptionKeys.includes(key))
       throw new ResourceConfigurationError(`request options.${key}: unknown field`);
   if (next.result !== undefined && next.result !== 'data' && next.result !== 'response')
     throw new ResourceConfigurationError('request options.result: invalid mode');
   if (next.timeout !== undefined && (!Number.isFinite(next.timeout) || next.timeout <= 0))
     throw new ResourceConfigurationError('request options.timeout: invalid budget');
-  assertCredentials(next.credentials);
+  const transfer = { ...transportSettings(previous), ...transportSettings(next) };
   const headers: Record<string, string | undefined> = { ...previous.headers };
   if (next.headers)
     for (const [key, value] of configurationFields(next.headers, 'headers')) {
@@ -93,7 +93,7 @@ function settingsMerge(previous: RequestOptions, next: RequestOptions): RequestO
   return Object.freeze(
     Object.assign(Object.create(null) as RequestOptions, previous, next, {
       result: next.result ?? previous.result,
-      credentials: next.credentials ?? previous.credentials,
+      ...transfer,
       headers: Object.freeze(headers),
     }),
   );

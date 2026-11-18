@@ -8,6 +8,8 @@ export const apiDescriptions = {
   ResourcePresetDefinition: 'Immutable resource preset retaining its declaration layers.',
   ResourceConfig:
     'Resource configuration including capabilities, paths, schemes, relations and actions.',
+  ResourceInputs:
+    'Optional JSON input contracts keyed by post, put and patch. Missing keys retain model-derived inputs without granting operations.',
   ResourceDefinition:
     'Immutable resource declaration carrying model and configuration types. Call `typed<Model>()` to bind a model while preserving inferred capabilities, relations and actions.',
   standardOperations:
@@ -71,8 +73,14 @@ export const apiDescriptions = {
     'Supported query field value. Undefined removes a key; null encodes as an empty string.',
   executeHttp:
     'Prepare, encode and execute HTTP with shared cancellation, timeout and error classification. Returns an HttpResponse.',
+  FetchTransportOptions:
+    'Injected Fetch and snapshotted transport defaults, with explicit per-request overrides.',
+  ResponseType: 'Response reading policy: auto, json, text or none.',
+  CacheMode: 'Standard HTTP cache modes, derived from the same catalog as runtime validation.',
+  TransportSettings:
+    'Response decoding, HTTP cache, keepalive and credentials policies shared by requests and executors.',
   fetchTransport:
-    'Create a Fetch-backed Transport that returns non-2xx responses normally and never follows redirects automatically.',
+    'Create a Fetch-backed Transport with injectable Fetch and transport defaults. It preserves real response metadata, cancels ignored success bodies and never automatically follows redirects.',
   RequestError:
     'Execution error with a stable kind. Raw request, response and cause are explicitly accessible but omitted from default diagnostics.',
   RequestErrorKind:
@@ -88,10 +96,11 @@ export const apiDescriptions = {
   HttpOptions:
     'Shared HTTP preparation, awaited successful response processing, error notification, background observation and execution settings.',
   RequestOptions:
-    'Per-call headers, credentials policy, cancellation signal, timeout and result mode.',
+    'Per-call headers, credentials, cancellation, timeout, result wrapping, response decoding, HTTP cache and keepalive.',
   ResourceTree: 'Named resource declarations used to assemble clients and relations.',
   ActionTree: 'Named action declarations used to assemble action call entries.',
-  decodeHttpBody: 'Decode response text according to its media type and empty-body rules.',
+  decodeHttpBody:
+    'Decode response text according to explicit auto/json/text/none policy while retaining actual response headers and failure details.',
   axiosTransport:
     'Execute final HTTP requests through an optional Axios instance. Returns non-2xx responses normally and disables redirects; instance interceptors remain caller-controlled.',
   withMock:

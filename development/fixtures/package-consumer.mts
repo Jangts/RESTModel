@@ -8,6 +8,9 @@ import {
   iteratePages,
   type RequestContext,
   type CredentialsMode,
+  type FetchTransportOptions,
+  type ResourceInputs,
+  resourceOf,
 } from '@restmodel/restmodel';
 import { axiosTransport } from '@restmodel/axios';
 import { withMock } from '@restmodel/mock';
@@ -129,3 +132,38 @@ precise.users.lookup({ id: 1 });
 precise.users(0).patch({ name: 123 });
 // @ts-expect-error pagination helper expects data-mode results
 iteratePages(precise.users.with({ result: 'response' }));
+
+const fetchOptions: FetchTransportOptions = {
+  fetch: globalThis.fetch,
+  responseType: 'json',
+  cache: 'no-store',
+  keepalive: false,
+};
+const writable = createClient({
+  baseURL: '/api',
+  transport: fetchTransport(fetchOptions),
+  resources: {
+    users: resource({ operations: ['get', 'put'] }).typed<
+      User,
+      {
+        put: { revision: number; name: string };
+      }
+    >(),
+  },
+});
+writable.users(0).with({ responseType: 'none' }).put({ revision: 1, name: 'saved' });
+writable
+  .users(0)
+  .get()
+  .then((user) => {
+    if (!user) return;
+    resourceOf(user).put({ revision: 2, name: 'saved' });
+    // @ts-expect-error tarball entities retain independent write contracts
+    resourceOf(user).put({ name: 'missing revision' });
+  });
+const inputs: ResourceInputs = { put: { revision: 1 } };
+void inputs;
+// @ts-expect-error tarball transport options reject unknown policies
+writable.users(0).with({ responseType: 'xml' });
+// @ts-expect-error read fields do not satisfy the independent write contract
+writable.users(0).put({ id: 0, name: 'missing revision' });

@@ -1,12 +1,28 @@
 /** 与具体请求库无关的 HTTP 公共契约。 */
+import type { transportValues } from './options.js';
 import type { credentialsModes } from './credentials.js';
 import type { RequestError } from './errors.js';
 import type { ResourceConfigurationError } from '../configuration.js';
 import type { HttpMethod } from '../operations.js';
 /** 浏览器认证凭据的携带策略；不控制显式 Authorization 头。 */
 export type CredentialsMode = (typeof credentialsModes)[number];
+/** 响应读取模式，与执行器的校验目录共用取值。 */
+export type ResponseType = (typeof transportValues.responseType)[number];
+/** HTTP 缓存模式，与执行器的校验目录共用取值。 */
+export type CacheMode = (typeof transportValues.cache)[number];
+/** 可逐请求覆盖的传输策略；与具体 HTTP 库无关，执行器必须遵守。 */
+export interface TransportSettings {
+  /** 省略时按响应 Content-Type 解码；none 只丢弃成功正文，失败仍保留诊断。 */
+  readonly responseType?: ResponseType | undefined;
+  /** HTTP 缓存策略，缺省沿用执行器；only-if-cached 仅适用于同源请求。 */
+  readonly cache?: CacheMode | undefined;
+  /** 页面关闭后继续发送的提示，不保证服务端完成；缺省沿用执行器。 */
+  readonly keepalive?: boolean | undefined;
+  /** 浏览器隐式凭据策略，不影响显式 Authorization。 */
+  readonly credentials?: CredentialsMode | undefined;
+}
 /** 编码完成的请求；Transport 必须监听 signal，且不自动跟随重定向。 */
-export interface HttpRequest {
+export interface HttpRequest extends TransportSettings {
   /** 大写 HTTP 方法。 */
   readonly method: HttpMethod;
   /** 已编码查询的 URL。 */
@@ -17,8 +33,6 @@ export interface HttpRequest {
   readonly body?: string | FormData | Blob | ArrayBuffer | undefined;
   /** 请求自身的取消信号；与 RequestOptions.signal 任一取消均生效，不代表服务端撤销。 */
   readonly signal?: AbortSignal | undefined;
-  /** 可选凭据策略；缺省沿用执行器默认行为。 */
-  readonly credentials?: CredentialsMode | undefined;
 }
 /** 正常 HTTP 响应，非 2xx 也必须返回此结构。 */
 export interface HttpResponse {
@@ -32,9 +46,7 @@ export interface HttpResponse {
 /** 只执行最终 HTTP，不读取资源或 scheme；网络失败拒绝 Promise。 */
 export type Transport = (request: HttpRequest) => Promise<HttpResponse>;
 /** 单次执行设置。 */
-export interface RequestOptions {
-  /** 凭据策略；缺失或 undefined 继承前层。 */
-  readonly credentials?: CredentialsMode | undefined;
+export interface RequestOptions extends TransportSettings {
   /** 请求头补丁，undefined 删除已有头。 */
   readonly headers?: Readonly<Record<string, string | undefined>> | undefined;
   /** 调用方拥有的取消信号。 */

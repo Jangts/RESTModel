@@ -1,16 +1,16 @@
 # @restmodel/mock
 
-An HTTP debugging extension decorating public Transports. Requires @restmodel/restmodel ^0.0.0. This extension targets public distribution but has not been published yet. It uses the [MIT License](../../../extensions/mock/LICENSE).
+An HTTP debugging extension decorating public Transports. Requires @restmodel/restmodel ^0.1.0. Version 0.1.0 uses the [MIT License](../../../extensions/mock/LICENSE).
 
 ## Installation
 
-After publication, install from npm (the packages are not published yet):
+Install 0.1.0 from npm once the registry release is available:
 
 ```sh
-pnpm add @restmodel/restmodel @restmodel/mock
+pnpm add @restmodel/restmodel@0.1.0 @restmodel/mock@0.1.0
 ```
 
-Before publication, run `pnpm install` and `pnpm build` at the repository root, then run `pnpm pack --pack-destination /tmp/restmodel-pack` in `extensions/mock`. In the consuming project, install the actual generated tarball with `pnpm add /tmp/restmodel-pack/<filename>.tgz`, together with the main package tarball and the third-party peers listed above. Packing cleans and rebuilds the current package's dist directory.
+Before publication, run `pnpm install` and `pnpm build` at the repository root, then run `pnpm pack --pack-destination /tmp/restmodel-pack` in `extensions/mock`. In the consuming project, install the actual generated tarball with `pnpm add /tmp/restmodel-pack/<filename>.tgz`, together with the main package tarball. This extension has no third-party peers. Packing cleans and rebuilds the current package's dist directory.
 
 ## Usage
 
